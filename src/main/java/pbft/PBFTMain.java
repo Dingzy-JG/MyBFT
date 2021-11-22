@@ -1,33 +1,51 @@
 package pbft;
 
-import constant.ConstantValue;
 import org.apache.commons.lang3.RandomUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import util.TimerManager;
 import java.util.Random;
+import java.util.concurrent.CountDownLatch;
+
+import static constant.ConstantValue.*;
 
 public class PBFTMain {
 
-    static Logger logger = LoggerFactory.getLogger(PBFTMain.class);
+    public static final int size = NODE_SIZE;                               // 节点数量
+    public static final int transactionNum = TRANSACTION_NUMBER;            // 交易的数量 (PBFT过程执行的次数)
+    public static PBFTNode[] nodes = new PBFTNode[500];                     // 节点集合
+    public static Random r = new Random();                                  // 用于生成随机数
+    public static long[][] netDelay = new long[500][500];                   // 用随机数代表网络延迟
 
-    public static final int size = 100;                             // 节点数量
-    private static PBFTNode[] nodes = new PBFTNode[500];            // 节点集合
-    private static Random r = new Random();                         // 用于生成随机数
-    private static long[][] netDelay = new long[500][500];          // 用随机数代表网络延迟
+    public static double communicationCost = 0;
+
+
+    // =====================================用于计时=====================================
+    public static long startTime, endTime;
+    public static CountDownLatch countDownLatch = new CountDownLatch(transactionNum);
+    // =====================================用于计时=====================================
 
     public static void main(String[] args) throws InterruptedException {
         for(int i = 0; i < size; i++) {
             nodes[i] = new PBFTNode(i, size).start();
         }
 
-        initNet(ConstantValue.FAST_NET_DELAY, ConstantValue.SLOW_NET_DELAY, ConstantValue.TO_ITSELF_DELAY);
+        initNet(FAST_NET_DELAY, SLOW_NET_DELAY, TO_ITSELF_DELAY);
 
         // 模拟client发送请求
-        for(int i = 0; i < 1; i++) {
+        for(int i = 0; i < transactionNum; i++) {
             int node = r.nextInt(size);
             nodes[node].req("test"+i);
         }
+
+        // =====================================用于计时=====================================
+        countDownLatch.await();
+        endTime = System.currentTimeMillis();
+        Thread.sleep(1000);
+        for(int i = 0; i < size; i++) {
+            communicationCost += nodes[i].totalSendMsgLen;
+        }
+        System.out.println("通信开销为: " + (communicationCost/8/1024) + "KB");
+        System.out.println("耗时: " + (endTime-startTime) + "ms");
+        // =====================================用于计时=====================================
+
     }
 
     // 初始化网络延迟
@@ -41,26 +59,5 @@ public class PBFTMain {
                 }
             }
         }
-    }
-
-    // 广播消息
-    public static void publish(PBFTMsg msg){
-        logger.info("[节点" + msg.getSenderId() + "]广播消息:" + msg);
-        for(int i = 0; i < size; i++) {
-            final int temp = i;
-            TimerManager.schedule(()->{
-                nodes[temp].pushMsg(new PBFTMsg(msg));
-                return null;
-            }, netDelay[msg.getSenderId()][nodes[temp].getIndex()]);
-        }
-    }
-
-    // 发送消息给指定节点
-    public static void send(int toIndex, PBFTMsg msg){
-        // 模拟网络时延
-        TimerManager.schedule(()-> {
-            nodes[toIndex].pushMsg(msg);
-            return null;
-        }, netDelay[msg.getSenderId()][toIndex]);
     }
 }

@@ -5,16 +5,18 @@ import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.AtomicLongMap;
-import constant.ConstantValue;
 import enums.MessageEnum;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import util.TimerManager;
+
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static constant.ConstantValue.*;
 
 public class PBFTNode {
 
@@ -27,7 +29,8 @@ public class PBFTNode {
     private PBFTMsg curREQMsg;                                      // 当前正在处理的请求
     private volatile boolean viewOK;                                // 所处视图的状态
     private volatile boolean isRunning = false;                     // 是否正在运行, 可用于设置Crash节点
-    private long timeout = ConstantValue.INIT_TIMEOUT;              // 超时计时器
+    private long timeout = INIT_TIMEOUT;                            // 超时计时器
+    public double totalSendMsgLen = 0;                              // 发送的所有消息的长度之和
 
     // 消息队列
     private BlockingQueue<PBFTMsg> qbm = Queues.newLinkedBlockingQueue();
@@ -46,7 +49,6 @@ public class PBFTNode {
     private AtomicLongMap<String> CMMsgCountMap = AtomicLongMap.create();
 
     // 回复消息数量
-    // 这边为什么不用Map [?]
     private AtomicLong replyMsgCount = new AtomicLong();
 
     // 视图转换消息记录
@@ -99,11 +101,15 @@ public class PBFTNode {
             int co = 0;
             @Override
             public void run() {
-                if(co == 0){
+                if(co == 0) {
                     // 启动后先同步视图
                     pubView();
                 }
                 co++;
+                // =====================================用于计时=====================================
+                if(PBFTMain.startTime == 0) PBFTMain.startTime = System.currentTimeMillis();
+                // =====================================用于计时=====================================
+
                 doReq();
                 checkTimer();
             }
@@ -160,20 +166,20 @@ public class PBFTNode {
             // 主节点生成序列号
             int seqNo = genSeqNo.incrementAndGet();
             REQMsg.setSeqNo(seqNo);
-            PBFTMain.publish(REQMsg);
+            publish(REQMsg);
         }else if(msg.getSenderId() != index){ // 忽略自己发的请求
             // 非主节点收到，说明主节点可能宕机
             if(doneMsgRecord.containsKey(msg.getDataKey())){
                 // 已经处理过，直接回复
                 REQMsg.setType(MessageEnum.REPLY);
-                PBFTMain.send(msg.getSenderId(), REQMsg);
+                send(msg.getSenderId(), REQMsg);
             }else{
                 // 认为客户端进行了VC投票
                 VCMsgRecord.add(msg.getSenderId()+"|@|"+(msg.getViewNo()+1));
                 VCMsgCountMap.incrementAndGet(msg.getViewNo()+1);
                 // 未处理，说明可能主节点宕机，转发给主节点试试
                 logger.info("[节点" + index + "]转发给主节点:"+ msg);
-                PBFTMain.send(getPriNode(view), REQMsg);
+                send(getPriNode(view), REQMsg);
                 REQMsgTimeout.put(msg.getDataHash(), System.currentTimeMillis());
             }
         }
@@ -196,7 +202,7 @@ public class PBFTNode {
         PBFTMsg PAMsg = new PBFTMsg(msg);
         PAMsg.setType(MessageEnum.PREPARE);
         PAMsg.setSenderId(index);
-        PBFTMain.publish(PAMsg);
+        publish(PAMsg);
     }
 
     private void onPrepare(PBFTMsg msg) {
@@ -225,7 +231,7 @@ public class PBFTNode {
             CMMsg.setType(MessageEnum.COMMIT);
             CMMsg.setSenderId(index);
             doneMsgRecord.put(CMMsg.getDataKey(), CMMsg);
-            PBFTMain.publish(CMMsg);
+            publish(CMMsg);
         }
         // 后续的票数肯定凑不满，超时自动清除
     }
@@ -261,7 +267,7 @@ public class PBFTNode {
                 REPLYMsg.setType(MessageEnum.REPLY);
                 REPLYMsg.setSenderId(index);
                 // 发送reply消息给主节点 (本来应该是客户端)
-                PBFTMain.send(REPLYMsg.getPrimeNodeId(), REPLYMsg);
+                send(REPLYMsg.getPrimeNodeId(), REPLYMsg);
                 doSomething(REPLYMsg);
             }
         }
@@ -273,6 +279,11 @@ public class PBFTNode {
         // 这边把主节点当成client
         if(count >= maxF+1) {
             logger.info("消息确认成功[" + index + "]:" + msg);
+
+            // =====================================用于计时=====================================
+            PBFTMain.countDownLatch.countDown();
+            // =====================================用于计时=====================================
+
             replyMsgCount.set(0);
             curREQMsg = null; // 当前请求已经完成
             // 执行相关逻辑
@@ -288,7 +299,7 @@ public class PBFTNode {
             sed.setSenderId(index);
             sed.setViewNo(view);
             sed.setDataHash("initView");
-            PBFTMain.send(msg.getSenderId(), sed);
+            send(msg.getSenderId(), sed);
         }else{
             // 响应
             if(this.viewOK) return; // 已经初始化成功
@@ -352,13 +363,13 @@ public class PBFTNode {
         // 记录发送时间, 用于后续判断超时
         REQMsgTimeout.put(curREQMsg.getDataHash(), System.currentTimeMillis());
         // 把当前请求发给主节点
-        PBFTMain.send(getPriNode(view), curREQMsg);
+        send(getPriNode(view), curREQMsg);
     }
 
     // 初始化视图view
     public void pubView(){
         PBFTMsg VIEWMsg = new PBFTMsg(MessageEnum.VIEW,index);
-        PBFTMain.publish(VIEWMsg);
+        publish(VIEWMsg);
     }
 
     public boolean checkMsg(PBFTMsg msg, boolean isPre){
@@ -399,14 +410,14 @@ public class PBFTNode {
                 VCMsgRecord.add(index + "|@|" + (this.view+1));
                 VCMsgCountMap.incrementAndGet(this.view+1);
                 // 广播当前请求
-                PBFTMain.publish(curREQMsg);
+                publish(curREQMsg);
             } else {
                 if(!this.viewOK) return; //已经开始选举视图, 不需要重复发起
                 this.viewOK = false;
                 // 作为副本节点, 广播视图变换信息
                 PBFTMsg VCMsg = new PBFTMsg(MessageEnum.VIEW_CHANGE, this.index);
                 VCMsg.setViewNo(this.view+1);
-                PBFTMain.publish(VCMsg);
+                publish(VCMsg);
             }
         });
     }
@@ -422,6 +433,42 @@ public class PBFTNode {
 
     public int getPriNode(int view){
         return view % n;
+    }
+
+    // 广播消息
+    public synchronized void publish(PBFTMsg msg){
+        logger.info("[节点" + msg.getSenderId() + "]广播消息:" + msg);
+        for(int i = 0; i < PBFTMain.size; i++) {
+            send(i, new PBFTMsg(msg)); // 广播时发送消息的复制
+//            final int temp = i;
+//            TimerManager.schedule(()->{
+//                PBFTMain.nodes[temp].pushMsg(new PBFTMsg(msg));
+//                return null;
+//            }, PBFTMain.netDelay[msg.getSenderId()][PBFTMain.nodes[temp].getIndex()]);
+        }
+    }
+
+    // 发送消息给指定节点, 加上synchronized按顺序发送
+    public synchronized void send(int toIndex, PBFTMsg msg) {
+        // 模拟发送时长
+        try {
+            Thread.sleep(sendMsgTime(msg, BANDWIDTH));
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        totalSendMsgLen += msg.getMsgLen();
+
+        // 模拟网络时延
+        TimerManager.schedule(()-> {
+            PBFTMain.nodes[toIndex].pushMsg(msg);
+            return null;
+        }, PBFTMain.netDelay[msg.getSenderId()][toIndex]);
+    }
+
+    // 发送消息所耗的时长, 单位ms
+    public long sendMsgTime(PBFTMsg msg, int bandwidth) {
+        return msg.getMsgLen() * 1000 / bandwidth;
     }
 
     public void pushMsg(PBFTMsg msg){

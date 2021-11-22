@@ -1,6 +1,8 @@
 package pbft;
 
 import enums.MessageEnum;
+// 静态导包, 计算消息长度时不用再加前缀
+import static constant.ConstantValue.*;
 
 public class PBFTMsg {
 
@@ -16,11 +18,11 @@ public class PBFTMsg {
     public PBFTMsg() {
     }
 
-    // 用于生成Request消息, 所以clientNodeId == nodeId [?]
+    // 用于生成Request消息, primeNodeId == nodeId. 其他调用时对senderId进行修改
     public PBFTMsg(MessageEnum type, int senderId) {
         this.type = type;
         this.senderId = senderId;
-        this.primeNodeId = senderId; // 为什么同nodeId [?]
+        this.primeNodeId = senderId;
         this.timestamp = System.currentTimeMillis();
         this.isValid = true;
     }
@@ -45,6 +47,38 @@ public class PBFTMsg {
     public String getKey() {
         return getDataKey() + "|@|" + getSenderId();
     }
+
+    // 获取消息长度
+    public long getMsgLen() {
+        long len = 0;
+        switch (type) {
+            case REQUEST:
+                len =  MSG_TYPE_ID_SIZE + HASH_SIZE + TIMESTAMP_SIZE + ID_SIZE + SIGNATURE_SIZE;
+                break;
+            case PRE_PREPARE:
+                len =  MSG_TYPE_ID_SIZE + VIEW_NO_SIZE + SEQ_NO_SIZE + HASH_SIZE + SIGNATURE_SIZE;
+                break;
+            case PREPARE:
+                len =  MSG_TYPE_ID_SIZE + VIEW_NO_SIZE + SEQ_NO_SIZE + HASH_SIZE + ID_SIZE + SIGNATURE_SIZE;
+                break;
+            case COMMIT:
+                len =  MSG_TYPE_ID_SIZE + VIEW_NO_SIZE + SEQ_NO_SIZE + HASH_SIZE + ID_SIZE + SIGNATURE_SIZE;
+                break;
+            case REPLY:
+                len =  MSG_TYPE_ID_SIZE + VIEW_NO_SIZE + TIMESTAMP_SIZE + ID_SIZE + ID_SIZE + RESULT_SIZE + SIGNATURE_SIZE;
+                break;
+            case VIEW:
+                len =  MSG_TYPE_ID_SIZE + VIEW_NO_SIZE + SIGNATURE_SIZE;
+                break;
+            case VIEW_CHANGE:
+                len =  MSG_TYPE_ID_SIZE + VIEW_NO_SIZE + SEQ_NO_SIZE + C_SET_SIZE + P_SET_SIZE + ID_SIZE + SIGNATURE_SIZE;
+                break;
+            default:
+                break;
+        }
+        return len;
+    }
+
 
     public MessageEnum getType() {
         return type;
@@ -114,12 +148,12 @@ public class PBFTMsg {
     public String toString() {
         return "PBFTMsg [" +
                 "isValid=" + isValid +
+                ", seqNo=" + seqNo +
                 ", type=" + type +
                 ", primeNodeId=" + primeNodeId +
                 ", senderId=" + senderId +
                 ", viewNo=" + viewNo +
                 ", dataHash=" + dataHash +
-                ", seqNo=" + seqNo +
                 ", timestamp=" + timestamp + "]";
     }
 }

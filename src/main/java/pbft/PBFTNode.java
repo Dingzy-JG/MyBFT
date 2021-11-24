@@ -106,9 +106,6 @@ public class PBFTNode {
                     pubView();
                 }
                 co++;
-                // =====================================用于计时=====================================
-                if(PBFTMain.startTime == 0) PBFTMain.startTime = System.currentTimeMillis();
-                // =====================================用于计时=====================================
 
                 doReq();
                 checkTimer();
@@ -158,6 +155,12 @@ public class PBFTNode {
         REQMsg.setSenderId(index);
         // 视图号已过期
         if(msg.getViewNo() < view) return;
+
+        // 记录第一次发送请求的时间
+        // =====================================用于计时=====================================
+        if(PBFTMain.startTime == 0) PBFTMain.startTime = System.currentTimeMillis();
+        // =====================================用于计时=====================================
+
         if(msg.getViewNo() == index){ // 如果为主节点
             if(applyMsgRecord.containsKey(msg.getDataKey())) return; // 已经受理过
             applyMsgRecord.put(msg.getDataKey(), msg);

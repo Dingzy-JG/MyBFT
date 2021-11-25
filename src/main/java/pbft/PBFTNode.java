@@ -213,7 +213,7 @@ public class PBFTNode {
             logger.info("[节点" + index + "]收到异常消息" + msg);
             return;
         }
-        String msgKey = msg.getKey();
+        String msgKey = msg.getMsgKey();
         if(PAMsgRecord.contains(msgKey)){
             // 说明已经投过票，不能重复投
             return;
@@ -241,7 +241,7 @@ public class PBFTNode {
 
     private void onCommit(PBFTMsg msg) {
         if(!checkMsg(msg,false)) return;
-        String msgKey = msg.getKey();
+        String msgKey = msg.getMsgKey();
         if(CMMsgRecord.contains(msgKey)){
             // 说明该节点对该项数据已经投过票，不能重复投
             return;
@@ -340,7 +340,6 @@ public class PBFTNode {
 
     // 执行对应请求
     private void doSomething(PBFTMsg msg) {
-        // 请求被允许，可放心执行
         logger.info("[节点" + index + "]成功执行请求" + msg);
     }
 
@@ -351,7 +350,7 @@ public class PBFTNode {
         reqQueue.put(REQMsg);
     }
 
-    // 发送请求
+    // 检查请求
     protected boolean doReq() {
         if(!viewOK || curREQMsg != null) return false; // 视图初始化中/上一个请求还没发完
         curREQMsg = reqQueue.poll();
@@ -443,11 +442,6 @@ public class PBFTNode {
         logger.info("[节点" + msg.getSenderId() + "]广播消息:" + msg);
         for(int i = 0; i < PBFTMain.size; i++) {
             send(i, new PBFTMsg(msg)); // 广播时发送消息的复制
-//            final int temp = i;
-//            TimerManager.schedule(()->{
-//                PBFTMain.nodes[temp].pushMsg(new PBFTMsg(msg));
-//                return null;
-//            }, PBFTMain.netDelay[msg.getSenderId()][PBFTMain.nodes[temp].getIndex()]);
         }
     }
 
@@ -492,7 +486,4 @@ public class PBFTNode {
         this.isRunning = true;
     }
 
-    public int getIndex() {
-        return index;
-    }
 }

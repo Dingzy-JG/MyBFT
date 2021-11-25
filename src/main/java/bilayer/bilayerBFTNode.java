@@ -1,5 +1,7 @@
 package bilayer;
 
+import static constant.ConstantValue.*;
+
 import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
 import com.google.common.collect.Sets;
@@ -8,11 +10,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.Timer;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import pbft.PBFTMain;
 import pbft.PBFTMsg;
+import util.TimerManager;
 
 public class bilayerBFTNode {
 
@@ -23,8 +26,8 @@ public class bilayerBFTNode {
     private int index;                                              // 该节点的标识
     private bilayerBFTMsg curREQMsg;                                // 当前正在处理的请求
     private int groupSize;                                          // 组大小
-    private long SendWeightTime;                                    // 隔多久发送WEIGHT消息
-    private long SendNoBlockTime;                                   // 隔多久发送NO_BLOCK消息
+    private long SendWeightTime = SEND_WEIGHT_TIME;                 // 隔多久发送WEIGHT消息
+    private long SendNoBlockTime = SEND_NO_BLOCK_TIME;              // 隔多久发送NO_BLOCK消息
     public double totalSendMsgLen = 0;                              // 发送的所有消息的长度之和
     private volatile boolean isRunning = false;                     // 是否正在运行, 可用于设置Crash节点
 
@@ -54,17 +57,68 @@ public class bilayerBFTNode {
     // 已经成功处理过的请求
     private Map<String,PBFTMsg> doneMsgRecord = Maps.newConcurrentMap();
 
-    // 还未修改
-//    // 存入client利用RBC发出区块的时间, 用于判断WEIGHT超时
-//    private Map<String,Long> WeightTimer = Maps.newHashMap();
-//    // 存入发请求消息的时间
-//    // 如果请求超时，view加1，重试
-//    private Map<String,Long> REQMsgTimeout = Maps.newHashMap();
+    // 存入client利用RBC发出区块的时间, 用于判断何时发送WEIGHT和NO_BLOCK消息
+    private Map<String,Long> RBCStartTime = Maps.newHashMap();
 
     // 请求队列
     private BlockingQueue<PBFTMsg> reqQueue = Queues.newLinkedBlockingDeque();
 
+    // 权重累加值
+    private AtomicLong WeightSum = new AtomicLong();
+
     private Timer timer;
 
+
+
+
+
+//    // 广播消息
+//    public synchronized void publish(PBFTMsg msg){
+//        logger.info("[节点" + msg.getSenderId() + "]广播消息:" + msg);
+//        for(int i = 0; i < PBFTMain.size; i++) {
+//            send(i, new PBFTMsg(msg)); // 广播时发送消息的复制
+//        }
+//    }
+//
+//    // 发送消息给指定节点, 加上synchronized按顺序发送
+//    public synchronized void send(int toIndex, PBFTMsg msg) {
+//        // 模拟发送时长
+//        try {
+//            Thread.sleep(sendMsgTime(msg, BANDWIDTH));
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
+//
+//        totalSendMsgLen += msg.getMsgLen();
+//
+//        // 模拟网络时延
+//        TimerManager.schedule(()-> {
+//            PBFTMain.nodes[toIndex].pushMsg(msg);
+//            return null;
+//        }, bilayerBFTMain.netDelay[msg.getSenderId()][toIndex]);
+//    }
+//
+//    // 发送消息所耗的时长, 单位ms
+//    public long sendMsgTime(PBFTMsg msg, int bandwidth) {
+//        return msg.getMsgLen() * 1000 / bandwidth;
+//    }
+//
+//    public void pushMsg(PBFTMsg msg){
+//        try {
+//            this.qbm.put(msg);
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
+//    }
+
+    public void NodeCrash(){
+        logger.info("[节点" + index + "]宕机--------------");
+        this.isRunning = false;
+    }
+
+    public void NodeRecover() {
+        logger.info("[节点" + index + "]恢复--------------");
+        this.isRunning = true;
+    }
 
 }

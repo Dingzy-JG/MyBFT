@@ -44,7 +44,7 @@ public class PBFTMsg {
         return getDataHash() + "|@|" + getSeqNo();
     }
 
-    public String getKey() {
+    public String getMsgKey() {
         return getDataKey() + "|@|" + getSenderId();
     }
 
@@ -146,7 +146,7 @@ public class PBFTMsg {
 
     @Override
     public String toString() {
-        return "PBFTMsg [" +
+        return "PBFTMsg {" +
                 "isValid=" + isValid +
                 ", seqNo=" + seqNo +
                 ", type=" + type +
@@ -154,6 +154,6 @@ public class PBFTMsg {
                 ", senderId=" + senderId +
                 ", viewNo=" + viewNo +
                 ", dataHash=" + dataHash +
-                ", timestamp=" + timestamp + "]";
+                ", timestamp=" + timestamp + "}";
     }
 }

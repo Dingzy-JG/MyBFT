@@ -64,10 +64,11 @@ public class bilayerBFTNode {
 
     private Timer timer;
 
-    public bilayerBFTNode(int index, int n, boolean isLeader) {
+    public bilayerBFTNode(int index, int n, int groupSize, boolean isLeader) {
         this.index = index;
         this.n = n;
         this.maxF = (n-1) / 3;
+        this.groupSize = groupSize;
         this.isLeader = isLeader;
         timer = new Timer("Timer"+index);
     }

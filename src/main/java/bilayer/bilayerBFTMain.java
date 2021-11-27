@@ -12,10 +12,12 @@ public class bilayerBFTMain {
     public static final int size = NODE_SIZE;                                       // 节点数量
     public static final int groupNum = getGroupNum(size);                           // 组数
     public static final int[] groupSizeArr = getGroupSizeArr(size, groupNum);       // 各组中节点数量
+    public static final int[] node2Index = getNode2Index();                         // 通过数组nodes下标找index, 初始化节点时给出正确的index
+    public static final int[] index2Node = getIndex2Node();                         // 通过index找nodes中的下标, 为了方便查找发送时间
     public static final int transactionNum = TRANSACTION_NUMBER;                    // 交易的数量 (PBFT过程执行的次数)
-    public static bilayerBFTNode[] nodes = new bilayerBFTNode[550];                 // 节点集合, 取550主要因为当节点数为499时, 有些组有11个
+    public static bilayerBFTNode[] nodes = new bilayerBFTNode[500];                 // 节点集合
     public static Random r = new Random();                                          // 用于生成随机数
-    public static long[][] netDelay = new long[550][550];                           // 用随机数代表网络延迟
+    public static long[][] netDelay = new long[550][550];                           // 用随机数代表网络延迟, 取550主要因为当节点数为499时, 有些组有11个
 
     public static double communicationCost = 0;
 
@@ -27,7 +29,11 @@ public class bilayerBFTMain {
 
     public static void main(String[] args) {
         initNet(GROUP_INSIDE_FAST_NET_DELAY, GROUP_INSIDE_SLOW_NET_DELAY, GROUP_OUTSIDE_FAST_NET_DELAY, GROUP_OUTSIDE_SLOW_NET_DELAY, TO_ITSELF_DELAY);
-
+        for(int i = 0; i < size; i++) {
+            int index = node2Index[i];
+            boolean isLeader = (index % 11 == 0);
+            nodes[i] = new bilayerBFTNode(index, size, groupSizeArr[i/OFFSET], isLeader);
+        }
 
     }
 
@@ -52,6 +58,26 @@ public class bilayerBFTMain {
                 }
             }
         }
+    }
+
+
+    private static int[] getIndex2Node() {
+        int[] res = new int[550];
+        for(int i = 0; i < size; i++) {
+            res[node2Index[i]] = i;
+        }
+        return res;
+    }
+
+    private static int[] getNode2Index() {
+        int[] res = new int[size];
+        int idx = 0;
+        for(int i = 0; i < groupNum; i++) {
+            for(int j = 0; j < groupSizeArr[i]; j++) {
+                res[idx++] = OFFSET * i + j;
+            }
+        }
+        return res;
     }
 
     private static int[] getGroupSizeArr(int nodeSize, int groupNum) {

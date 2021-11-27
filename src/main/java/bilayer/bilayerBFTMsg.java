@@ -1,9 +1,8 @@
 package bilayer;
 
-import static constant.ConstantValue.*;
-
 import enums.MessageEnum;
 import java.math.BigInteger;
+import static constant.ConstantValue.*;
 
 public class bilayerBFTMsg {
 
@@ -50,21 +49,20 @@ public class bilayerBFTMsg {
     public long getMsgLen() {
         long len = 0;
         switch (type) {
-//            case REQUEST:
-//                len =  MSG_TYPE_ID_SIZE + HASH_SIZE + TIMESTAMP_SIZE + ID_SIZE + SIGNATURE_SIZE;
-//                break;
-//            case PRE_PREPARE:
-//                len =  MSG_TYPE_ID_SIZE + VIEW_NO_SIZE + SEQ_NO_SIZE + HASH_SIZE + SIGNATURE_SIZE;
-//                break;
-//            case PREPARE:
-//                len =  MSG_TYPE_ID_SIZE + VIEW_NO_SIZE + SEQ_NO_SIZE + HASH_SIZE + ID_SIZE + SIGNATURE_SIZE;
-//                break;
-//            case COMMIT:
-//                len =  MSG_TYPE_ID_SIZE + VIEW_NO_SIZE + SEQ_NO_SIZE + HASH_SIZE + ID_SIZE + SIGNATURE_SIZE;
-//                break;
-//            case REPLY:
-//                len =  MSG_TYPE_ID_SIZE + VIEW_NO_SIZE + TIMESTAMP_SIZE + ID_SIZE + ID_SIZE + RESULT_SIZE + SIGNATURE_SIZE;
-//                break;
+            case PREPARE:
+            case COMMIT:
+            case WEIGHT:
+            case NO_REPLY:
+            case PROOF_HONEST:
+                len =  MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + SIGNATURE_SIZE;
+                break;
+            case REPLY:
+            case NO_BLOCK:
+                len =  MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + RESULT_SIZE + SIGNATURE_SIZE + SIGNATURE_SIZE;
+                break;
+            case AFFIRM_HONEST:
+                len = MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + SIGNATURE_SIZE + SIGNATURE_SIZE;
+                break;
             default:
                 break;
         }

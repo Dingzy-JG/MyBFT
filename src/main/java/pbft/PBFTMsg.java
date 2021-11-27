@@ -1,7 +1,6 @@
 package pbft;
 
 import enums.MessageEnum;
-// 静态导包, 计算消息长度时不用再加前缀
 import static constant.ConstantValue.*;
 
 public class PBFTMsg {
@@ -59,8 +58,6 @@ public class PBFTMsg {
                 len =  MSG_TYPE_ID_SIZE + VIEW_NO_SIZE + SEQ_NO_SIZE + HASH_SIZE + SIGNATURE_SIZE;
                 break;
             case PREPARE:
-                len =  MSG_TYPE_ID_SIZE + VIEW_NO_SIZE + SEQ_NO_SIZE + HASH_SIZE + ID_SIZE + SIGNATURE_SIZE;
-                break;
             case COMMIT:
                 len =  MSG_TYPE_ID_SIZE + VIEW_NO_SIZE + SEQ_NO_SIZE + HASH_SIZE + ID_SIZE + SIGNATURE_SIZE;
                 break;

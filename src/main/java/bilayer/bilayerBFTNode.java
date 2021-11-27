@@ -1,7 +1,5 @@
 package bilayer;
 
-import static constant.ConstantValue.*;
-
 import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
 import com.google.common.collect.Sets;
@@ -13,9 +11,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import pbft.PBFTMain;
-import pbft.PBFTMsg;
-import util.TimerManager;
+import static constant.ConstantValue.*;
 
 public class bilayerBFTNode {
 
@@ -25,18 +21,18 @@ public class bilayerBFTNode {
     private int maxF;                                               // 最大容错数, 对应论文中的f
     private int index;                                              // 该节点的标识
     private bilayerBFTMsg curREQMsg;                                // 当前正在处理的请求
-    private int groupSize;                                          // 组大小
-    private long SendWeightTime = SEND_WEIGHT_TIME;                 // 隔多久发送WEIGHT消息
-    private long SendNoBlockTime = SEND_NO_BLOCK_TIME;              // 隔多久发送NO_BLOCK消息
+    private long SendWeightTime = SEND_WEIGHT_TIME;                 // 隔多久发送WEIGHT消息, 根据实际情况调整
+    private long SendNoBlockTime = SEND_NO_BLOCK_TIME;              // 隔多久发送NO_BLOCK消息, 根据实际情况调整
     public double totalSendMsgLen = 0;                              // 发送的所有消息的长度之和
     private volatile boolean isRunning = false;                     // 是否正在运行, 可用于设置Crash节点
 
+    private int groupSize;                                          // 组大小
     private boolean isLeader;                                       // 是否是leader
-    private long[] memberIds;                                       // 组员id, [0]对应的是leader
     private int weight;                                             // 用于是leader时的权重记录
 
+
     // 消息队列
-    private BlockingQueue<PBFTMsg> qbm = Queues.newLinkedBlockingQueue();
+    private BlockingQueue<bilayerBFTMsg> qbm = Queues.newLinkedBlockingQueue();
 
     // RBC解码后区块记录
     private Set<String> RBCMsgRecord = Sets.newConcurrentHashSet();
@@ -55,20 +51,26 @@ public class bilayerBFTNode {
     private AtomicLong replyMsgCount = new AtomicLong();
 
     // 已经成功处理过的请求
-    private Map<String,PBFTMsg> doneMsgRecord = Maps.newConcurrentMap();
+    private Map<String,bilayerBFTMsg> doneMsgRecord = Maps.newConcurrentMap();
 
     // 存入client利用RBC发出区块的时间, 用于判断何时发送WEIGHT和NO_BLOCK消息
     private Map<String,Long> RBCStartTime = Maps.newHashMap();
 
     // 请求队列
-    private BlockingQueue<PBFTMsg> reqQueue = Queues.newLinkedBlockingDeque();
+    private BlockingQueue<bilayerBFTMsg> reqQueue = Queues.newLinkedBlockingDeque();
 
     // 权重累加值
     private AtomicLong WeightSum = new AtomicLong();
 
     private Timer timer;
 
-
+    public bilayerBFTNode(int index, int n, boolean isLeader) {
+        this.index = index;
+        this.n = n;
+        this.maxF = (n-1) / 3;
+        this.isLeader = isLeader;
+        timer = new Timer("Timer"+index);
+    }
 
 
 
@@ -110,6 +112,13 @@ public class bilayerBFTNode {
 //            e.printStackTrace();
 //        }
 //    }
+
+
+
+    // 为了方便, 将节点序号隔OFFSET个分为一组, 第一个能被OFFSET整除的序号对应的是leader
+    public int getLeaderNode(int index) {
+        return index / OFFSET * OFFSET;
+    }
 
     public void NodeCrash(){
         logger.info("[节点" + index + "]宕机--------------");

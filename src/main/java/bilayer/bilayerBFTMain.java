@@ -17,7 +17,7 @@ public class bilayerBFTMain {
     public static final int transactionNum = TRANSACTION_NUMBER;                    // 交易的数量 (PBFT过程执行的次数)
     public static bilayerBFTNode[] nodes = new bilayerBFTNode[500];                 // 节点集合
     public static Random r = new Random();                                          // 用于生成随机数
-    public static long[][] netDelay = new long[550][550];                           // 用随机数代表网络延迟, 取550主要因为当节点数为499时, 有些组有11个
+    public static long[][] netDelay = new long[550][550];                           // 用随机数代表网络延迟, 下标代表对应index之间的延迟, 取550主要因为当节点数为499时, 有些组有11个
 
     public static double communicationCost = 0;
 

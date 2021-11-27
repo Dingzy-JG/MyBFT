@@ -11,6 +11,8 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import util.TimerManager;
+
 import static constant.ConstantValue.*;
 
 public class bilayerBFTNode {
@@ -114,10 +116,62 @@ public class bilayerBFTNode {
 //        }
 //    }
 
+    // 向所有节点广播 (组内组外)
+    public synchronized void publishToAll(bilayerBFTMsg msg) {
+        logger.info("[节点" + index + "]向所有节点广播消息:" + msg);
+        for(int i = 0; i < n; i++) {
+            send(bilayerBFTMain.node2Index[i], new bilayerBFTMsg(msg));
+        }
+    }
 
+    // 组内广播
+    public synchronized void publishInsideGroup(bilayerBFTMsg msg) {
+        logger.info("[节点" + index + "]组内广播消息:" + msg);
+        int leaderIndex = getLeaderIndex(index);
+        for(int i = 0; i < groupSize; i++) {
+            send(leaderIndex + i, new bilayerBFTMsg(msg));
+        }
+    }
+
+    public synchronized void send(int toIndex, bilayerBFTMsg msg) {
+        // 模拟发送时长
+        try {
+            Thread.sleep(sendMsgTime(msg, BANDWIDTH));
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+
+        totalSendMsgLen += msg.getMsgLen();
+
+        // 模拟网络延迟
+        TimerManager.schedule(() -> {
+            bilayerBFTMain.nodes[bilayerBFTMain.index2Node[toIndex]].pushMsg(msg);
+            return null;
+        },bilayerBFTMain.netDelay[index][toIndex]);
+
+    }
+
+    public long sendMsgTime(bilayerBFTMsg msg, int bandwidth) {
+        return msg.getMsgLen() * 1000 / bandwidth;
+    }
+
+    public void pushMsg(bilayerBFTMsg msg) {
+        try {
+            this.qbm.put(msg);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public boolean checkMsg(bilayerBFTMsg msg) {
+        return (msg.isValid()
+                // 如果是自己的消息无需校验
+                // 收到的消息是自己组的
+                && (msg.getSenderId() == index || getLeaderIndex(index) == getLeaderIndex(msg.getSenderId())));
+    }
 
     // 为了方便, 将节点序号隔OFFSET个分为一组, 第一个能被OFFSET整除的序号对应的是leader
-    public int getLeaderNode(int index) {
+    public int getLeaderIndex(int index) {
         return index / OFFSET * OFFSET;
     }
 

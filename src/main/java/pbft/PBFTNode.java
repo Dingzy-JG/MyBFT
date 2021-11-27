@@ -439,8 +439,8 @@ public class PBFTNode {
 
     // 广播消息
     public synchronized void publish(PBFTMsg msg){
-        logger.info("[节点" + msg.getSenderId() + "]广播消息:" + msg);
-        for(int i = 0; i < PBFTMain.size; i++) {
+        logger.info("[节点" + index + "]广播消息:" + msg);
+        for(int i = 0; i < n; i++) {
             send(i, new PBFTMsg(msg)); // 广播时发送消息的复制
         }
     }
@@ -457,10 +457,10 @@ public class PBFTNode {
         totalSendMsgLen += msg.getMsgLen();
 
         // 模拟网络时延
-        TimerManager.schedule(()-> {
+        TimerManager.schedule(() -> {
             PBFTMain.nodes[toIndex].pushMsg(msg);
             return null;
-        }, PBFTMain.netDelay[msg.getSenderId()][toIndex]);
+        }, PBFTMain.netDelay[index][toIndex]);
     }
 
     // 发送消息所耗的时长, 单位ms

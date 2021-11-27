@@ -77,8 +77,10 @@ public class bilayerBFTNode {
 
 
 
+
+
     // 向所有节点广播 (组内组外)
-    public synchronized void publishToAll(bilayerBFTMsg msg) {
+    private synchronized void publishToAll(bilayerBFTMsg msg) {
         logger.info("[节点" + index + "]向所有节点广播消息:" + msg);
         for(int i = 0; i < n; i++) {
             send(bilayerBFTMain.node2Index[i], new bilayerBFTMsg(msg));
@@ -86,7 +88,7 @@ public class bilayerBFTNode {
     }
 
     // 组内广播
-    public synchronized void publishInsideGroup(bilayerBFTMsg msg) {
+    private synchronized void publishInsideGroup(bilayerBFTMsg msg) {
         logger.info("[节点" + index + "]组内广播消息:" + msg);
         int leaderIndex = getLeaderIndex(index);
         for(int i = 0; i < groupSize; i++) {
@@ -94,7 +96,7 @@ public class bilayerBFTNode {
         }
     }
 
-    public synchronized void send(int toIndex, bilayerBFTMsg msg) {
+    private synchronized void send(int toIndex, bilayerBFTMsg msg) {
         // 模拟发送时长
         try {
             Thread.sleep(sendMsgTime(msg, BANDWIDTH));
@@ -124,7 +126,7 @@ public class bilayerBFTNode {
         }
     }
 
-    public boolean checkMsg(bilayerBFTMsg msg) {
+    private boolean checkMsg(bilayerBFTMsg msg) {
         return (msg.isValid()
                 // 如果是自己的消息无需校验
                 // 收到的消息是自己组的
@@ -136,12 +138,12 @@ public class bilayerBFTNode {
         return index / OFFSET * OFFSET;
     }
 
-    public void NodeCrash(){
+    private void NodeCrash(){
         logger.info("[节点" + index + "]宕机--------------");
         this.isRunning = false;
     }
 
-    public void NodeRecover() {
+    private void NodeRecover() {
         logger.info("[节点" + index + "]恢复--------------");
         this.isRunning = true;
     }

@@ -182,7 +182,7 @@ public class PBFTNode {
                 VCMsgCountMap.incrementAndGet(msg.getViewNo()+1);
                 // 未处理，说明可能主节点宕机，转发给主节点试试
                 logger.info("[节点" + index + "]转发给主节点:"+ msg);
-                send(getPriNode(view), REQMsg);
+                send(getPrimeIndex(view), REQMsg);
                 REQMsgTimeout.put(msg.getDataHash(), System.currentTimeMillis());
             }
         }
@@ -351,7 +351,7 @@ public class PBFTNode {
     }
 
     // 检查请求
-    protected boolean doReq() {
+    private boolean doReq() {
         if(!viewOK || curREQMsg != null) return false; // 视图初始化中/上一个请求还没发完
         curREQMsg = reqQueue.poll();
         if(curREQMsg == null) return false;
@@ -361,25 +361,25 @@ public class PBFTNode {
     }
 
     // 发送当前请求消息
-    void doSendCurMsg(){
+    private void doSendCurMsg(){
         // 记录发送时间, 用于后续判断超时
         REQMsgTimeout.put(curREQMsg.getDataHash(), System.currentTimeMillis());
         // 把当前请求发给主节点
-        send(getPriNode(view), curREQMsg);
+        send(getPrimeIndex(view), curREQMsg);
     }
 
     // 初始化视图view
-    public void pubView(){
+    private void pubView(){
         PBFTMsg VIEWMsg = new PBFTMsg(MessageEnum.VIEW,index);
         publish(VIEWMsg);
     }
 
-    public boolean checkMsg(PBFTMsg msg, boolean isPre){
+    private boolean checkMsg(PBFTMsg msg, boolean isPre){
         return (msg.isValid() && msg.getViewNo() == view
                 // pre-prepare阶段校验
                 // 如果是自己的消息则无需之后的校验
                 // pre-prepare消息必须从主节点收到, 且序列号大于当前序列号
-                && (!isPre || msg.getSenderId() == index || (getPriNode(view) == msg.getSenderId() && msg.getSeqNo() > genSeqNo.get())));
+                && (!isPre || msg.getSenderId() == index || (getPrimeIndex(view) == msg.getSenderId() && msg.getSeqNo() > genSeqNo.get())));
     }
 
 
@@ -433,12 +433,12 @@ public class PBFTNode {
         PBFTMsgTimeout.remove(it);
     }
 
-    public int getPriNode(int view){
+    public int getPrimeIndex(int view){
         return view % n;
     }
 
     // 广播消息
-    public synchronized void publish(PBFTMsg msg){
+    private synchronized void publish(PBFTMsg msg){
         logger.info("[节点" + index + "]广播消息:" + msg);
         for(int i = 0; i < n; i++) {
             send(i, new PBFTMsg(msg)); // 广播时发送消息的复制
@@ -446,7 +446,7 @@ public class PBFTNode {
     }
 
     // 发送消息给指定节点, 加上synchronized按顺序发送
-    public synchronized void send(int toIndex, PBFTMsg msg) {
+    private synchronized void send(int toIndex, PBFTMsg msg) {
         // 模拟发送时长
         try {
             Thread.sleep(sendMsgTime(msg, BANDWIDTH));
@@ -476,12 +476,12 @@ public class PBFTNode {
         }
     }
 
-    public void NodeCrash(){
+    private void NodeCrash(){
         logger.info("[节点" + index + "]宕机--------------");
         this.isRunning = false;
     }
 
-    public void NodeRecover() {
+    private void NodeRecover() {
         logger.info("[节点" + index + "]恢复--------------");
         this.isRunning = true;
     }

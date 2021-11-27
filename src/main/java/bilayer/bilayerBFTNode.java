@@ -77,45 +77,6 @@ public class bilayerBFTNode {
 
 
 
-//    // 广播消息
-//    public synchronized void publish(PBFTMsg msg){
-//        logger.info("[节点" + msg.getSenderId() + "]广播消息:" + msg);
-//        for(int i = 0; i < PBFTMain.size; i++) {
-//            send(i, new PBFTMsg(msg)); // 广播时发送消息的复制
-//        }
-//    }
-//
-//    // 发送消息给指定节点, 加上synchronized按顺序发送
-//    public synchronized void send(int toIndex, PBFTMsg msg) {
-//        // 模拟发送时长
-//        try {
-//            Thread.sleep(sendMsgTime(msg, BANDWIDTH));
-//        } catch (InterruptedException e) {
-//            e.printStackTrace();
-//        }
-//
-//        totalSendMsgLen += msg.getMsgLen();
-//
-//        // 模拟网络时延
-//        TimerManager.schedule(()-> {
-//            PBFTMain.nodes[toIndex].pushMsg(msg);
-//            return null;
-//        }, bilayerBFTMain.netDelay[msg.getSenderId()][toIndex]);
-//    }
-//
-//    // 发送消息所耗的时长, 单位ms
-//    public long sendMsgTime(PBFTMsg msg, int bandwidth) {
-//        return msg.getMsgLen() * 1000 / bandwidth;
-//    }
-//
-//    public void pushMsg(PBFTMsg msg){
-//        try {
-//            this.qbm.put(msg);
-//        } catch (InterruptedException e) {
-//            e.printStackTrace();
-//        }
-//    }
-
     // 向所有节点广播 (组内组外)
     public synchronized void publishToAll(bilayerBFTMsg msg) {
         logger.info("[节点" + index + "]向所有节点广播消息:" + msg);

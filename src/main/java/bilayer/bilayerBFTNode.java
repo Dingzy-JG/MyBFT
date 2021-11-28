@@ -9,6 +9,8 @@ import java.util.Set;
 import java.util.Timer;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
+
+import enums.MessageEnum;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import util.TimerManager;
@@ -76,11 +78,45 @@ public class bilayerBFTNode {
     }
 
 
+    // 执行对应请求
+    private void doSomething(bilayerBFTMsg msg) {
+        logger.info("[节点" + index + "]成功执行请求" + msg);
+    }
 
+    // 请求入列
+    public void req(String data) {
+        bilayerBFTMsg REQMsg = new bilayerBFTMsg(MessageEnum.REQUEST, index);
+        REQMsg.setDataHash(data);
+        try {
+            reqQueue.put(REQMsg);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
 
+    // 检查请求
+    private boolean doReq() {
+        if(curREQMsg != null) return false; // 上一个请求还未完成
+        curREQMsg = reqQueue.poll();
+        if(curREQMsg == null) return false;
+        doSendCurMsg();
+        return true;
+    }
+
+    // 发送当前请求
+    private void doSendCurMsg() {
+        // 记录通过RBC发送时间, 用于后续判断何时发送WEIGHT和NO_BLOCK消息
+        RBCStartTime.put(curREQMsg.getDataHash(), System.currentTimeMillis());
+        doRBC();
+    }
+
+    // 通过RBC把请求发给所有节点
+    private void doRBC() {
+        // TODO 补充RBC, 效果为所有节点的qbm中加入请求
+    }
 
     // 向所有节点广播 (组内组外)
-    private synchronized void publishToAll(bilayerBFTMsg msg) {
+    public synchronized void publishToAll(bilayerBFTMsg msg) {
         logger.info("[节点" + index + "]向所有节点广播消息:" + msg);
         for(int i = 0; i < n; i++) {
             send(bilayerBFTMain.node2Index[i], new bilayerBFTMsg(msg));
@@ -88,7 +124,7 @@ public class bilayerBFTNode {
     }
 
     // 组内广播
-    private synchronized void publishInsideGroup(bilayerBFTMsg msg) {
+    public synchronized void publishInsideGroup(bilayerBFTMsg msg) {
         logger.info("[节点" + index + "]组内广播消息:" + msg);
         int leaderIndex = getLeaderIndex(index);
         for(int i = 0; i < groupSize; i++) {
@@ -96,7 +132,7 @@ public class bilayerBFTNode {
         }
     }
 
-    private synchronized void send(int toIndex, bilayerBFTMsg msg) {
+    public synchronized void send(int toIndex, bilayerBFTMsg msg) {
         // 模拟发送时长
         try {
             Thread.sleep(sendMsgTime(msg, BANDWIDTH));
@@ -120,7 +156,7 @@ public class bilayerBFTNode {
 
     public void pushMsg(bilayerBFTMsg msg) {
         try {
-            this.qbm.put(msg);
+            qbm.put(msg);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -140,12 +176,12 @@ public class bilayerBFTNode {
 
     private void NodeCrash(){
         logger.info("[节点" + index + "]宕机--------------");
-        this.isRunning = false;
+        isRunning = false;
     }
 
     private void NodeRecover() {
         logger.info("[节点" + index + "]恢复--------------");
-        this.isRunning = true;
+        isRunning = true;
     }
 
 }

@@ -27,7 +27,7 @@ public class bilayerBFTMain {
     public static CountDownLatch countDownLatch = new CountDownLatch(transactionNum);
     // =====================================用于计时=====================================
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
         initNet(GROUP_INSIDE_FAST_NET_DELAY, GROUP_INSIDE_SLOW_NET_DELAY, GROUP_OUTSIDE_FAST_NET_DELAY, GROUP_OUTSIDE_SLOW_NET_DELAY, TO_ITSELF_DELAY);
         for(int i = 0; i < size; i++) {
             int index = node2Index[i];
@@ -94,6 +94,10 @@ public class bilayerBFTMain {
     }
 
     private static int getGroupNum(int nodeSize) {
+        // 节点数量小于32时不分组
+        if(nodeSize < 32) {
+            return 1;
+        }
         int temp = nodeSize*nodeSize/2;
         int res = (int) Math.pow(temp, 1.0/3);
         // 存在精度损失, 如当nodeSize = 500时

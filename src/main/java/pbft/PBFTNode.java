@@ -259,7 +259,7 @@ public class PBFTNode {
             cleanCache(msg.getDataKey());
             if(msg.getSenderId() != index){
                 // 更新序列号
-                this.genSeqNo.set(msg.getSeqNo());
+                genSeqNo.set(msg.getSeqNo());
             }
             // 进入回复阶段
             if(msg.getPrimeNodeId() == index){
@@ -277,7 +277,7 @@ public class PBFTNode {
     }
 
     private void onReply(PBFTMsg msg) {
-        if(curREQMsg == null || !curREQMsg.getDataHash().equals(msg.getDataHash()))return;
+        if(curREQMsg == null || !curREQMsg.getDataHash().equals(msg.getDataHash())) return;
         long count = replyMsgCount.incrementAndGet();
         // 这边把主节点当成client
         if(count >= maxF+1) {
@@ -305,12 +305,12 @@ public class PBFTNode {
             send(msg.getSenderId(), sed);
         }else{
             // 响应
-            if(this.viewOK) return; // 已经初始化成功
+            if(viewOK) return; // 已经初始化成功
             long count = VCMsgCountMap.incrementAndGet(msg.getViewNo());
             if(count >= 2* maxF +1){
                 VCMsgCountMap.clear();
-                this.view = msg.getViewNo();
-                this.viewOK = true;
+                view = msg.getViewNo();
+                viewOK = true;
                 logger.info("[节点" + index + "]视图初始化完成:" + view);
             }
         }
@@ -326,12 +326,12 @@ public class PBFTNode {
         long count = VCMsgCountMap.incrementAndGet(msg.getViewNo());
         if(count >= 2*maxF + 1){
             VCMsgCountMap.clear();
-            this.view = msg.getViewNo();
+            view = msg.getViewNo();
             viewOK = true;
             logger.info("[节点" + index + "]视图变更完成:" + view);
             // 可以继续发请求
             if(curREQMsg != null){
-                curREQMsg.setViewNo(this.view);
+                curREQMsg.setViewNo(view);
                 logger.info("[节点" + index + "]请求重传:" + curREQMsg);
                 doSendCurMsg();
             }
@@ -344,23 +344,27 @@ public class PBFTNode {
     }
 
     // 请求入列
-    public void req(String data) throws InterruptedException{
-        PBFTMsg REQMsg = new PBFTMsg(MessageEnum.REQUEST, this.index);
+    public void req(String data) {
+        PBFTMsg REQMsg = new PBFTMsg(MessageEnum.REQUEST, index);
         REQMsg.setDataHash(data);
-        reqQueue.put(REQMsg);
+        try {
+            reqQueue.put(REQMsg);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     // 检查请求
     private boolean doReq() {
-        if(!viewOK || curREQMsg != null) return false; // 视图初始化中/上一个请求还没发完
+        if(!viewOK || curREQMsg != null) return false; // 视图初始化中/上一个请求还未完成
         curREQMsg = reqQueue.poll();
         if(curREQMsg == null) return false;
-        curREQMsg.setViewNo(this.view);
+        curREQMsg.setViewNo(view);
         doSendCurMsg();
         return true;
     }
 
-    // 发送当前请求消息
+    // 发送当前请求消息给主节点
     private void doSendCurMsg(){
         // 记录发送时间, 用于后续判断超时
         REQMsgTimeout.put(curREQMsg.getDataHash(), System.currentTimeMillis());
@@ -409,16 +413,16 @@ public class PBFTNode {
             REQMsgTimeout.remove(it);
             if(curREQMsg != null && curREQMsg.getDataHash().equals(it)) {
                 // 作为客户端发起节点
-                VCMsgRecord.add(index + "|@|" + (this.view+1));
-                VCMsgCountMap.incrementAndGet(this.view+1);
+                VCMsgRecord.add(index + "|@|" + (view+1));
+                VCMsgCountMap.incrementAndGet(view+1);
                 // 广播当前请求
                 publish(curREQMsg);
             } else {
-                if(!this.viewOK) return; //已经开始选举视图, 不需要重复发起
-                this.viewOK = false;
+                if(!viewOK) return; //已经开始选举视图, 不需要重复发起
+                viewOK = false;
                 // 作为副本节点, 广播视图变换信息
-                PBFTMsg VCMsg = new PBFTMsg(MessageEnum.VIEW_CHANGE, this.index);
-                VCMsg.setViewNo(this.view+1);
+                PBFTMsg VCMsg = new PBFTMsg(MessageEnum.VIEW_CHANGE, index);
+                VCMsg.setViewNo(view+1);
                 publish(VCMsg);
             }
         });
@@ -438,7 +442,7 @@ public class PBFTNode {
     }
 
     // 广播消息
-    private synchronized void publish(PBFTMsg msg){
+    public synchronized void publish(PBFTMsg msg){
         logger.info("[节点" + index + "]广播消息:" + msg);
         for(int i = 0; i < n; i++) {
             send(i, new PBFTMsg(msg)); // 广播时发送消息的复制
@@ -446,7 +450,7 @@ public class PBFTNode {
     }
 
     // 发送消息给指定节点, 加上synchronized按顺序发送
-    private synchronized void send(int toIndex, PBFTMsg msg) {
+    public synchronized void send(int toIndex, PBFTMsg msg) {
         // 模拟发送时长
         try {
             Thread.sleep(sendMsgTime(msg, BANDWIDTH));
@@ -470,7 +474,7 @@ public class PBFTNode {
 
     public void pushMsg(PBFTMsg msg){
         try {
-            this.qbm.put(msg);
+            qbm.put(msg);
         } catch (InterruptedException e) {
             e.printStackTrace();
         }
@@ -478,12 +482,12 @@ public class PBFTNode {
 
     private void NodeCrash(){
         logger.info("[节点" + index + "]宕机--------------");
-        this.isRunning = false;
+        isRunning = false;
     }
 
     private void NodeRecover() {
         logger.info("[节点" + index + "]恢复--------------");
-        this.isRunning = true;
+        isRunning = true;
     }
 
 }

@@ -49,6 +49,9 @@ public class bilayerBFTMsg {
     public long getMsgLen() {
         long len = 0;
         switch (type) {
+            case REQUEST:
+                len =  MSG_TYPE_ID_SIZE + HASH_SIZE + TIMESTAMP_SIZE + ID_SIZE + PK_SIZE + SIGNATURE_SIZE;
+                break;
             case PREPARE:
             case COMMIT:
             case WEIGHT:
@@ -149,7 +152,7 @@ public class bilayerBFTMsg {
             ", primeNodeId=" + primeNodeId +
             ", senderId=" + senderId +
             ", senderPK=" + senderPK +
-            ", dataHash='" + dataHash +
+            ", dataHash=" + dataHash +
             ", b=" + b +
             ", timestamp=" + timestamp +
             ", signature=" + signature + '}';

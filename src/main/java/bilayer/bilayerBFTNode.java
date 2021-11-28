@@ -7,10 +7,12 @@ import com.google.common.util.concurrent.AtomicLongMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
 import enums.MessageEnum;
+import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import util.TimerManager;
@@ -31,6 +33,7 @@ public class bilayerBFTNode {
     private volatile boolean isRunning = false;                     // 是否正在运行, 可用于设置Crash节点
 
     private int groupSize;                                          // 组大小
+    private int groupMaxF;                                          // 组中的容错数量
     private boolean isLeader;                                       // 是否是leader
     private int weight;                                             // 用于是leader时的权重记录
 
@@ -39,7 +42,7 @@ public class bilayerBFTNode {
     private BlockingQueue<bilayerBFTMsg> qbm = Queues.newLinkedBlockingQueue();
 
     // RBC解码后区块记录
-    private Set<String> RBCMsgRecord = Sets.newConcurrentHashSet();
+    private Set<String> REQMsgRecord = Sets.newConcurrentHashSet();
 
     // 准备阶段消息记录
     private Set<String> PAMsgRecord = Sets.newConcurrentHashSet();
@@ -54,11 +57,13 @@ public class bilayerBFTNode {
     // 回复消息数量
     private AtomicLong replyMsgCount = new AtomicLong();
 
+    // 已经发起过受理的请求
+    private Map<String, bilayerBFTMsg> applyMsgRecord = Maps.newConcurrentMap();
     // 已经成功处理过的请求
     private Map<String,bilayerBFTMsg> doneMsgRecord = Maps.newConcurrentMap();
 
     // 存入client利用RBC发出区块的时间, 用于判断何时发送WEIGHT和NO_BLOCK消息
-    private Map<String,Long> RBCStartTime = Maps.newHashMap();
+    private Map<String,Long> REQMsgTimeout = Maps.newHashMap();
 
     // 请求队列
     private BlockingQueue<bilayerBFTMsg> reqQueue = Queues.newLinkedBlockingDeque();
@@ -73,9 +78,128 @@ public class bilayerBFTNode {
         this.n = n;
         this.maxF = (n-1) / 3;
         this.groupSize = groupSize;
+        this.groupMaxF = (groupSize-1) / 3;
         this.isLeader = isLeader;
         timer = new Timer("Timer"+index);
     }
+
+    public bilayerBFTNode start() {
+        // TODO 待补充
+        new Thread(() -> {
+            while(true) {
+                try {
+                    bilayerBFTMsg msg = qbm.take();
+                    doAction(msg);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }).start();
+
+        isRunning = true;
+        timer.schedule(new TimerTask() {
+            @Override
+            public void run() {
+                doReq();
+            }
+        }, 100, 100);
+        return this;
+    }
+
+    private boolean doAction(bilayerBFTMsg msg) {
+        if(!isRunning) return false;
+        if(msg != null) {
+            logger.info("[节点" + index + "]收到消息:"+ msg);
+            switch (msg.getType()) {
+                case REQUEST:
+                    onRequest(msg);
+                    break;
+                case PREPARE:
+                    onPrepare(msg);
+                    break;
+                case COMMIT:
+                    onCommit(msg);
+                    break;
+                case REPLY:
+//                    onReply(msg);
+                    break;
+                default:
+                    break;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    private void onRequest(bilayerBFTMsg msg) {
+        if(!msg.isValid()) {
+            logger.info("[节点" + index + "]收到异常消息" + msg);
+            return;
+        }
+        if(applyMsgRecord.containsKey(msg.getDataKey())) return; // 已经受理过
+        // PBFT中忽略了自己发的请求, 这边怎么处理暂时待定 [?]
+        applyMsgRecord.put(msg.getDataKey(), msg);
+        // 根据第一层共识算法, 直接广播prepare消息
+        bilayerBFTMsg PAMsg = new bilayerBFTMsg(msg);
+        PAMsg.setType(MessageEnum.PREPARE);
+        PAMsg.setSenderId(index);
+        // 组内广播PA消息
+        publishInsideGroup(PAMsg);
+    }
+
+    private void onPrepare(bilayerBFTMsg msg) {
+        if(!checkMsg(msg)) {
+            logger.info("[节点" + index + "]收到异常消息" + msg);
+            return;
+        }
+        String msgKey = msg.getMsgKey();
+        if(PAMsgRecord.contains(msgKey)) {
+            // 说明已经投过票, 不能重复投
+            return;
+        }
+        // 记录收到的PAMsg
+        PAMsgRecord.add(msgKey);
+        // 票数+1, 并返回+1后的票数
+        long agCou = PAMsgCountMap.incrementAndGet(msg.getDataKey());
+        if(agCou >= 2*groupMaxF + 1) {
+            PAMsgCountMap.remove(msg.getDataKey());
+            bilayerBFTMsg CMMsg = new bilayerBFTMsg(msg);
+            CMMsg.setType(MessageEnum.COMMIT);
+            CMMsg.setSenderId(index);
+            doneMsgRecord.put(CMMsg.getDataKey(), CMMsg);
+            publishInsideGroup(CMMsg);
+        }
+    }
+
+    private void onCommit(bilayerBFTMsg msg) {
+        if(!checkMsg(msg)) {
+            logger.info("[节点" + index + "]收到异常消息" + msg);
+            return;
+        }
+        String msgKey = msg.getMsgKey();
+        if(CMMsgRecord.contains(msgKey)) {
+            // 已经投过票, 不能重复投
+            return;
+        }
+        if(!PAMsgRecord.contains(msgKey)) {
+            // 必须先过准备阶段
+            return;
+        }
+        // 记录收到的CMMsg
+        CMMsgRecord.add(msgKey);
+        // 票数+1, 并返回+1后的票数
+        long agCou = CMMsgCountMap.incrementAndGet(msg.getDataKey());
+        if(agCou == 2*groupMaxF + 1) { // 改成等于, 只在到2f+1的那一次发REPLY
+            // 和PBFT不同, 这里先不执行请求, 只发送REPLY消息, 等到最终共识结果出来再执行请求
+            bilayerBFTMsg REPLYMsg = new bilayerBFTMsg(msg);
+            REPLYMsg.setType(MessageEnum.REPLY);
+            REPLYMsg.setSenderId(index);
+            // 发送REPLY消息给leader
+            send(getLeaderIndex(index), REPLYMsg);
+        }
+    }
+
+
 
 
     // 执行对应请求
@@ -106,13 +230,14 @@ public class bilayerBFTNode {
     // 发送当前请求
     private void doSendCurMsg() {
         // 记录通过RBC发送时间, 用于后续判断何时发送WEIGHT和NO_BLOCK消息
-        RBCStartTime.put(curREQMsg.getDataHash(), System.currentTimeMillis());
+        REQMsgTimeout.put(curREQMsg.getDataHash(), System.currentTimeMillis());
         doRBC();
     }
 
     // 通过RBC把请求发给所有节点
     private void doRBC() {
         // TODO 补充RBC, 效果为所有节点的qbm中加入请求
+        publishToAll(curREQMsg);
     }
 
     // 向所有节点广播 (组内组外)
@@ -169,8 +294,16 @@ public class bilayerBFTNode {
                 && (msg.getSenderId() == index || getLeaderIndex(index) == getLeaderIndex(msg.getSenderId())));
     }
 
+    private void cleanCache(String it) {
+        PAMsgRecord.removeIf((vp) -> StringUtils.startsWith(vp, it));
+        CMMsgRecord.removeIf((vp) -> StringUtils.startsWith(vp, it));
+        PAMsgCountMap.remove(it);
+        CMMsgRecord.remove(it);
+    }
+
     // 为了方便, 将节点序号隔OFFSET个分为一组, 第一个能被OFFSET整除的序号对应的是leader
     public int getLeaderIndex(int index) {
+        if(n < 32) return 0;
         return index / OFFSET * OFFSET;
     }
 

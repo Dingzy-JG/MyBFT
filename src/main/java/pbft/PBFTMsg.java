@@ -39,6 +39,7 @@ public class PBFTMsg {
     }
 
     // 用于后面放到Map中里当key
+    // 加上seqNo主要是因为当一次请求失败时, dataHash没变, 会被当做已经处理过
     public String getDataKey() {
         return getDataHash() + "|@|" + getSeqNo();
     }

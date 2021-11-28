@@ -40,9 +40,15 @@ public class bilayerBFTMsg {
         this.isValid = msg.isValid;
     }
 
+    // PBFTMsg中用seqNo来处理未成功请求再次发送不被拒绝
+    // bilayerBFT中没有seqNo, 用timestamp代替
+    public String getDataKey() {
+        return getDataHash() + "|@|" + timestamp;
+    }
+
     // 得到消息标识
     public String getMsgKey() {
-        return getDataHash() + "|@|" + getSenderId();
+        return getDataKey() + "|@|" + getSenderId();
     }
 
     // 获取消息长度

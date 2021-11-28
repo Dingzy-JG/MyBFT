@@ -31,6 +31,13 @@ public class PBFTMain {
         // 模拟client发送请求
         for(int i = 0; i < transactionNum; i++) {
             int node = r.nextInt(size);
+
+//            // 记录第一次发送请求的时间
+//            // 在这边还得算上视图初始化的时间
+//            // =====================================用于计时=====================================
+//            if(PBFTMain.startTime == 0) PBFTMain.startTime = System.currentTimeMillis();
+//            // =====================================用于计时=====================================
+
             nodes[node].req("test"+i);
         }
 

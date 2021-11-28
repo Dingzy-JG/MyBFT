@@ -64,7 +64,7 @@ public class PBFTNode {
     // 存入发PPMsg的时间, 用于判断PBFT超时
     private Map<String,Long> PBFTMsgTimeout = Maps.newHashMap();
     // 存入发请求消息的时间
-    // 如果请求超时，view加1，重试
+    // 如果请求超时, view加1, 重试
     private Map<String,Long> REQMsgTimeout = Maps.newHashMap();
 
     // 请求队列
@@ -86,7 +86,7 @@ public class PBFTNode {
         new Thread(() -> {
             // 一直执行
             // 之后自己修改可以改成把请求队列中的内容执行完当做判断条件
-            while (true) {
+            while(true) {
                 try {
                     PBFTMsg msg = qbm.take();
                     doAction(msg);
@@ -117,7 +117,7 @@ public class PBFTNode {
 
     private boolean doAction(PBFTMsg msg) {
         if(!isRunning) return false;
-        if(msg != null){
+        if(msg != null) {
             logger.info("[节点" + index + "]收到消息:"+ msg);
             switch (msg.getType()) {
                 case REQUEST:
@@ -150,13 +150,16 @@ public class PBFTNode {
     }
 
     private void onRequest(PBFTMsg msg) {
-        if(!msg.isValid()) return;
-        PBFTMsg REQMsg = new PBFTMsg(msg);
-        REQMsg.setSenderId(index);
+        if(!msg.isValid()) {
+            logger.info("[节点" + index + "]收到异常消息" + msg);
+            return;
+        }
+        PBFTMsg newMsg = new PBFTMsg(msg);
+        newMsg.setSenderId(index);
         // 视图号已过期
         if(msg.getViewNo() < view) return;
 
-        // 记录第一次发送请求的时间
+        // 记录第一次收到请求的时间
         // =====================================用于计时=====================================
         if(PBFTMain.startTime == 0) PBFTMain.startTime = System.currentTimeMillis();
         // =====================================用于计时=====================================
@@ -165,41 +168,44 @@ public class PBFTNode {
             if(applyMsgRecord.containsKey(msg.getDataKey())) return; // 已经受理过
             applyMsgRecord.put(msg.getDataKey(), msg);
             // 主节点收到client的请求后进行广播
-            REQMsg.setType(MessageEnum.PRE_PREPARE);
+            newMsg.setType(MessageEnum.PRE_PREPARE);
             // 主节点生成序列号
             int seqNo = genSeqNo.incrementAndGet();
-            REQMsg.setSeqNo(seqNo);
-            publish(REQMsg);
+            newMsg.setSeqNo(seqNo);
+            publish(newMsg);
         }else if(msg.getSenderId() != index){ // 忽略自己发的请求
-            // 非主节点收到，说明主节点可能宕机
+            // 非主节点收到, 说明主节点可能宕机
             if(doneMsgRecord.containsKey(msg.getDataKey())){
-                // 已经处理过，直接回复
-                REQMsg.setType(MessageEnum.REPLY);
-                send(msg.getSenderId(), REQMsg);
+                // 已经处理过, 直接回复
+                newMsg.setType(MessageEnum.REPLY);
+                send(msg.getSenderId(), newMsg);
             }else{
                 // 认为客户端进行了VC投票
                 VCMsgRecord.add(msg.getSenderId()+"|@|"+(msg.getViewNo()+1));
                 VCMsgCountMap.incrementAndGet(msg.getViewNo()+1);
-                // 未处理，说明可能主节点宕机，转发给主节点试试
+                // 未处理, 说明可能主节点宕机, 转发给主节点试试
                 logger.info("[节点" + index + "]转发给主节点:"+ msg);
-                send(getPrimeIndex(view), REQMsg);
+                send(getPrimeIndex(view), newMsg);
                 REQMsgTimeout.put(msg.getDataHash(), System.currentTimeMillis());
             }
         }
     }
 
     private void onPrePrepare(PBFTMsg msg) {
-        if(!checkMsg(msg,true)) return;
+        if(!checkMsg(msg,true)) {
+            logger.info("[节点" + index + "]收到异常消息" + msg);
+            return;
+        }
         String msgKey = msg.getDataKey();
         if(PPMsgRecord.contains(msgKey)){
-            // 说明已经发起过，不能重复发起
+            // 说明已经发起过, 不能重复发起
             return;
         }
         // 记录收到的PPMsg
         PPMsgRecord.add(msgKey);
         // 启动超时控制
         PBFTMsgTimeout.put(msgKey, System.currentTimeMillis());
-        // 移除请求超时，假如有请求的话. 用于处理上一次超时的同样请求
+        // 假如有请求的话, 移除请求超时, 用于处理上一次超时的同样请求
         REQMsgTimeout.remove(msg.getDataHash());
         // 进入准备阶段
         PBFTMsg PAMsg = new PBFTMsg(msg);
@@ -214,11 +220,11 @@ public class PBFTNode {
             return;
         }
         String msgKey = msg.getMsgKey();
-        if(PAMsgRecord.contains(msgKey)){
-            // 说明已经投过票，不能重复投
+        if(PAMsgRecord.contains(msgKey)) {
+            // 说明已经投过票, 不能重复投
             return;
         }
-        if(!PPMsgRecord.contains(msg.getDataKey())){
+        if(!PPMsgRecord.contains(msg.getDataKey())) {
             // 必须之前发过预准备消息
             return;
         }
@@ -236,17 +242,20 @@ public class PBFTNode {
             doneMsgRecord.put(CMMsg.getDataKey(), CMMsg);
             publish(CMMsg);
         }
-        // 后续的票数肯定凑不满，超时自动清除
+        // 后续的票数肯定凑不满, 超时自动清除
     }
 
     private void onCommit(PBFTMsg msg) {
-        if(!checkMsg(msg,false)) return;
-        String msgKey = msg.getMsgKey();
-        if(CMMsgRecord.contains(msgKey)){
-            // 说明该节点对该项数据已经投过票，不能重复投
+        if(!checkMsg(msg,false)) {
+            logger.info("[节点" + index + "]收到异常消息" + msg);
             return;
         }
-        if(!PAMsgRecord.contains(msgKey)){
+        String msgKey = msg.getMsgKey();
+        if(CMMsgRecord.contains(msgKey)) {
+            // 说明已经投过票, 不能重复投
+            return;
+        }
+        if(!PAMsgRecord.contains(msgKey)) {
             // 必须先过准备阶段
             return;
         }
@@ -254,32 +263,27 @@ public class PBFTNode {
         CMMsgRecord.add(msgKey);
         // 票数+1, 并返回+1后的票数
         long agCou = CMMsgCountMap.incrementAndGet(msg.getDataKey());
-        if(agCou >= 2*maxF + 1){
-            // 执行请求, 清空对应的PBFTMsg
+        if(agCou >= 2*maxF + 1) {
+            // 执行请求, 清空对应的PBFTMsg, 因为PBFT收到足够数量的commit就代表成功, 可以执行
+            // 不清除的话, 超过2f+1之后, 每收到一次就发送一个REPLY了
             cleanCache(msg.getDataKey());
             if(msg.getSenderId() != index){
                 // 更新序列号
                 genSeqNo.set(msg.getSeqNo());
             }
             // 进入回复阶段
-            if(msg.getPrimeNodeId() == index){
-                // 自身则直接回复
-                onReply(msg);
-            }else{
-                PBFTMsg REPLYMsg = new PBFTMsg(msg);
-                REPLYMsg.setType(MessageEnum.REPLY);
-                REPLYMsg.setSenderId(index);
-                // 发送reply消息给主节点 (本来应该是客户端)
-                send(REPLYMsg.getPrimeNodeId(), REPLYMsg);
-                doSomething(REPLYMsg);
-            }
+            PBFTMsg REPLYMsg = new PBFTMsg(msg);
+            REPLYMsg.setType(MessageEnum.REPLY);
+            REPLYMsg.setSenderId(index);
+            doSomething(REPLYMsg);
+            // 发送REPLY消息给客户端
+            send(REPLYMsg.getPrimeNodeId(), REPLYMsg);
         }
     }
 
     private void onReply(PBFTMsg msg) {
         if(curREQMsg == null || !curREQMsg.getDataHash().equals(msg.getDataHash())) return;
         long count = replyMsgCount.incrementAndGet();
-        // 这边把主节点当成client
         if(count >= maxF+1) {
             logger.info("消息确认成功[" + index + "]:" + msg);
 
@@ -289,8 +293,6 @@ public class PBFTNode {
 
             replyMsgCount.set(0);
             curREQMsg = null; // 当前请求已经完成
-            // 执行相关逻辑
-            doSomething(msg);
         }
     }
 

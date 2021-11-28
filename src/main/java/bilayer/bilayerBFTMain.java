@@ -32,8 +32,12 @@ public class bilayerBFTMain {
         for(int i = 0; i < size; i++) {
             int index = node2Index[i];
             boolean isLeader = (index % 11 == 0);
-            nodes[i] = new bilayerBFTNode(index, size, groupSizeArr[i/OFFSET], isLeader);
+            nodes[i] = new bilayerBFTNode(index, size, groupSizeArr[getGroupIndex(index)], isLeader).start();
         }
+
+        // 用来测试
+//        nodes[0].req("test"+1);
+
 
     }
 
@@ -91,6 +95,13 @@ public class bilayerBFTMain {
             res[i] = standardSize;
         }
         return res;
+    }
+
+    // 根据节点index获取组号
+    // 不判断是否小于32的话会在节点数量大于11小于32时数组访问越界
+    private static int getGroupIndex(int index) {
+        if(size < 32) return 0;
+        return index / OFFSET;
     }
 
     private static int getGroupNum(int nodeSize) {

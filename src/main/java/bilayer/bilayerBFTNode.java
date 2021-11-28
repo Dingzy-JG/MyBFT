@@ -121,7 +121,7 @@ public class bilayerBFTNode {
                     onCommit(msg);
                     break;
                 case REPLY:
-//                    onReply(msg);
+                    onReply(msg);
                     break;
                 default:
                     break;
@@ -199,7 +199,16 @@ public class bilayerBFTNode {
         }
     }
 
-
+    private void onReply(bilayerBFTMsg msg) {
+        if(curREQMsg == null || !curREQMsg.getDataHash().equals(msg.getDataHash())) return;
+        weight = (int) replyMsgCount.incrementAndGet();
+        // TODO
+        if(weight >= groupMaxF+1) {
+            logger.info("消息确认成功[" + index + "]:" + msg);
+            replyMsgCount.set(0);
+            curREQMsg = null; // 当前请求已经完成
+        }
+    }
 
 
     // 执行对应请求
@@ -307,7 +316,7 @@ public class bilayerBFTNode {
         return index / OFFSET * OFFSET;
     }
 
-    private void NodeCrash(){
+    private void NodeCrash() {
         logger.info("[节点" + index + "]宕机--------------");
         isRunning = false;
     }

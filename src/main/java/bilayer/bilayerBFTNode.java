@@ -1,13 +1,12 @@
 package bilayer;
 
+import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
 import com.google.common.collect.Sets;
 import com.google.common.util.concurrent.AtomicLongMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.Timer;
-import java.util.TimerTask;
+
+import java.util.*;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -27,14 +26,15 @@ public class bilayerBFTNode {
     private int maxF;                                               // 最大容错数, 对应论文中的f
     private int index;                                              // 该节点的标识
     private bilayerBFTMsg curREQMsg;                                // 当前正在处理的请求
-    private long SendWeightTime = SEND_WEIGHT_TIME;                 // 隔多久发送WEIGHT消息, 根据实际情况调整
-    private long SendNoBlockTime = SEND_NO_BLOCK_TIME;              // 隔多久发送NO_BLOCK消息, 根据实际情况调整
+    private long sendWeightTime = SEND_WEIGHT_TIME;                 // 隔多久发送WEIGHT消息, 根据实际情况调整
+    private long sendNoBlockTime = SEND_NO_BLOCK_TIME;              // 隔多久发送NO_BLOCK消息, 根据实际情况调整
     public double totalSendMsgLen = 0;                              // 发送的所有消息的长度之和
     private volatile boolean isRunning = false;                     // 是否正在运行, 可用于设置Crash节点
 
     private int groupSize;                                          // 组大小
     private int groupMaxF;                                          // 组中的容错数量
     private boolean isLeader;                                       // 是否是leader
+    // TODO 改为一个Map
     private int weight;                                             // 用于是leader时的权重记录
 
 
@@ -55,7 +55,11 @@ public class bilayerBFTNode {
     private AtomicLongMap<String> CMMsgCountMap = AtomicLongMap.create();
 
     // 回复消息数量
+    // 这边因为是Leader接受reply, 当有多条时, 会有不同的reply, 所以reply和weight都需要修改称为Map
+    // TODO 改为Map
     private AtomicLong replyMsgCount = new AtomicLong();
+
+    private Set<String> WEIGHTMsgRecord = Sets.newConcurrentHashSet();
 
     // 已经发起过受理的请求
     private Map<String, bilayerBFTMsg> applyMsgRecord = Maps.newConcurrentMap();
@@ -199,15 +203,17 @@ public class bilayerBFTNode {
         }
     }
 
+    // 因为请求的是下面的节点, 而reply发给了leader, 所以进不了下面的判断
+    // TODO 这边需要修改判断curREQMsg为判断一个Set
     private void onReply(bilayerBFTMsg msg) {
         if(curREQMsg == null || !curREQMsg.getDataHash().equals(msg.getDataHash())) return;
         weight = (int) replyMsgCount.incrementAndGet();
-        // TODO
-        if(weight >= groupMaxF+1) {
-            logger.info("消息确认成功[" + index + "]:" + msg);
-            replyMsgCount.set(0);
-            curREQMsg = null; // 当前请求已经完成
-        }
+        // TODO 完成后weight变回0 (已经打算用Map, 就不需要变为0了)
+//        if(weight >= groupMaxF+1) {
+//            logger.info("消息确认成功[" + index + "]:" + msg);
+//            replyMsgCount.set(0);
+//            curREQMsg = null; // 当前请求已经完成
+//        }
     }
 
 
@@ -217,6 +223,7 @@ public class bilayerBFTNode {
     }
 
     // 请求入列
+    // TODO 入列时需要给它的Leader也存这个, 之后leader判断来替换判断curREQMsg
     public void req(String data) {
         bilayerBFTMsg REQMsg = new bilayerBFTMsg(MessageEnum.REQUEST, index);
         REQMsg.setDataHash(data);
@@ -243,10 +250,26 @@ public class bilayerBFTNode {
         doRBC();
     }
 
-    // 通过RBC把请求发给所有节点
+    // 通过RBC把请求发给所有节点, 这一步其实相当于PBFT中的pre-prepare阶段
     private void doRBC() {
         // TODO 补充RBC, 效果为所有节点的qbm中加入请求
         publishToAll(curREQMsg);
+    }
+
+    // 检测WEIGHT和NO_BLOCK的发送时间
+    private void checkTimer() {
+        List<String> weightList = Lists.newArrayList();
+        for(Map.Entry<String, Long> item : REQMsgTimeout.entrySet()) {
+            if(System.currentTimeMillis() - item.getValue() > sendWeightTime) {
+                // 如果没发送过WEIGHT消息, 则发送
+                // 这边暂时不知道要不要加上判断是否要检测是否为senderId
+                 if(!WEIGHTMsgRecord.contains(item.getKey())) {
+                     // TODO 给leader发送WEIGHT消息
+//                    send();
+                 }
+            }
+        }
+
     }
 
     // 向所有节点广播 (组内组外)
@@ -254,6 +277,16 @@ public class bilayerBFTNode {
         logger.info("[节点" + index + "]向所有节点广播消息:" + msg);
         for(int i = 0; i < n; i++) {
             send(bilayerBFTMain.node2Index[i], new bilayerBFTMsg(msg));
+        }
+    }
+
+    // 向所有leaders广播消息
+    public synchronized void publishToLeaders(bilayerBFTMsg msg) {
+        logger.info("[节点" + index + "]向所有leaders广播消息:" + msg);
+        for(int i = 0; i < n; i++) {
+            if(bilayerBFTMain.nodes[i].isLeader) {
+                send(bilayerBFTMain.nodes[i].index, new bilayerBFTMsg(msg));
+            }
         }
     }
 

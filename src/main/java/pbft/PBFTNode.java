@@ -49,6 +49,7 @@ public class PBFTNode {
     private AtomicLongMap<String> CMMsgCountMap = AtomicLongMap.create();
 
     // 回复消息数量
+    // 这边应为每个节点最多同时处理一个请求, 所以记录reply时只用一个原子类计数即可
     private AtomicLong replyMsgCount = new AtomicLong();
 
     // 视图转换消息记录

@@ -1,5 +1,6 @@
 package bilayer;
 
+import enums.MessageEnum;
 import org.apache.commons.lang3.RandomUtils;
 
 import static constant.ConstantValue.*;
@@ -31,13 +32,11 @@ public class bilayerBFTMain {
         initNet(GROUP_INSIDE_FAST_NET_DELAY, GROUP_INSIDE_SLOW_NET_DELAY, GROUP_OUTSIDE_FAST_NET_DELAY, GROUP_OUTSIDE_SLOW_NET_DELAY, TO_ITSELF_DELAY);
         for(int i = 0; i < size; i++) {
             int index = node2Index[i];
-            boolean isLeader = (index % 11 == 0);
-            nodes[i] = new bilayerBFTNode(index, size, groupSizeArr[getGroupIndex(index)], isLeader).start();
+            nodes[i] = new bilayerBFTNode(index, size, groupSizeArr[getGroupIndex(index)], isLeader(index)).start();
         }
 
         // 用来测试
-//        nodes[0].req("test"+1);
-
+        nodes[1].req("test"+1);
 
     }
 
@@ -64,6 +63,14 @@ public class bilayerBFTMain {
         }
     }
 
+    // 判断对应index是否为leader
+    private static boolean isLeader(int index) {
+        if(size < 32) {
+            return index == 0;
+        } else {
+            return (index % OFFSET == 0);
+        }
+    }
 
     private static int[] getIndex2Node() {
         int[] res = new int[550];

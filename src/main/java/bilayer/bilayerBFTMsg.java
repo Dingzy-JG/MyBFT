@@ -72,6 +72,9 @@ public class bilayerBFTMsg {
             case AFFIRM_HONEST:
                 len = MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + SIGNATURE_SIZE + SIGNATURE_SIZE;
                 break;
+            case WABA:
+                len = MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + WEIGHT_SIZE + RESULT_SIZE + SIGNATURE_SIZE;
+                break;
             default:
                 break;
         }

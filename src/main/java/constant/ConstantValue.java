@@ -32,9 +32,10 @@ public class ConstantValue {
     // 分组后一组中最多有多少个节点, 实验最大节点数为500个
     // 最多的情况为499时, 分为49组, 其中有9组为11个节点
     public static final int OFFSET = 11;
+    public static final int WEIGHT_SIZE = 16;
     public static final int PK_SIZE = 512;
-    public static final long SEND_WEIGHT_TIME = 10000; // 根据实际情况设置
-    public static final long SEND_NO_BLOCK_TIME = 20000; // 根据实际情况设置
+    public static final long SEND_WEIGHT_TIME = 2000; // 根据实际情况设置
+    public static final long SEND_NO_BLOCK_TIME = 60000; // (1min)根据实际情况设置
     public static final long GROUP_INSIDE_FAST_NET_DELAY = 10;
     public static final long GROUP_INSIDE_SLOW_NET_DELAY = 20;
     public static final long GROUP_OUTSIDE_FAST_NET_DELAY = 10;

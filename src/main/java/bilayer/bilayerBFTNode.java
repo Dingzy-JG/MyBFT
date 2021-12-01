@@ -83,7 +83,6 @@ public class bilayerBFTNode {
     }
 
     public bilayerBFTNode start() {
-        // TODO 待补充
         new Thread(() -> {
             while(true) {
                 try {
@@ -100,6 +99,7 @@ public class bilayerBFTNode {
             @Override
             public void run() {
                 doReq();
+                checkTimer();
             }
         }, 100, 100);
         return this;
@@ -121,6 +121,12 @@ public class bilayerBFTNode {
                     break;
                 case REPLY:
                     onReply(msg);
+                    break;
+                case WEIGHT:
+                    onWeight(msg);
+                    break;
+                case WABA:
+                    onWABA(msg);
                     break;
                 default:
                     break;
@@ -199,7 +205,6 @@ public class bilayerBFTNode {
 
     private void onReply(bilayerBFTMsg msg) {
         if(!REQMsgRecord.contains(msg.getDataKey())) return;
-        System.out.println("节点" + index + "收到消息" + msg);
         String msgKey = msg.getMsgKey();
         if(REPLYMsgRecord.contains(msgKey)) {
             return;
@@ -212,6 +217,14 @@ public class bilayerBFTNode {
 //        }
     }
 
+    private void onWeight(bilayerBFTMsg msg) {
+        System.out.println("节点"+index+"收到消息"+msg);
+
+    }
+
+    private void onWABA(bilayerBFTMsg msg) {
+        System.out.println("节点"+index+"收到消息"+msg);
+    }
 
     // 执行对应请求
     private void doSomething(bilayerBFTMsg msg) {
@@ -253,6 +266,7 @@ public class bilayerBFTNode {
 
     // 检测WEIGHT和NO_BLOCK的发送时间
     private void checkTimer() {
+        // TODO 待补充NO_BLOCK消息
         List<String> weightList = Lists.newArrayList();
         for(Map.Entry<String, Long> item : REQMsgTimeout.entrySet()) {
             if(System.currentTimeMillis() - item.getValue() > sendWeightTime) {
@@ -260,7 +274,12 @@ public class bilayerBFTNode {
                 // 这边暂时不知道要不要加上判断是否要检测是否为senderId
                  if(!WEIGHTMsgRecord.contains(item.getKey())) {
                      // TODO 给leader发送WEIGHT消息
-//                    send();
+                     bilayerBFTMsg WEIGHTMsg = new bilayerBFTMsg(curREQMsg);
+                     // 本来发送者就是自己, 不用再修改了
+                     WEIGHTMsg.setType(MessageEnum.WEIGHT);
+                     // 向所有leaders发送WEIGHT消息, 通知它们进入WABA阶段
+                     publishToLeaders(WEIGHTMsg);
+                     WEIGHTMsgRecord.add(WEIGHTMsg.getDataKey());
                  }
             }
         }

@@ -56,13 +56,13 @@ public class bilayerBFTNode {
 
     // 回复消息数量
     // 这边因为是Leader接受reply, 当有多条时, 会有不同的reply, 所以reply和weight都需要修改称为Map
-    // TODO 改为Map
+    // TODO 改为Map, 看看各自的记录的是DataKey还是MsgKey
     private AtomicLong replyMsgCount = new AtomicLong();
+    // 记录已经收到的REPLY消息对应的数量
+    private AtomicLongMap<String> REPLYMsgCountMap = AtomicLongMap.create();
 
     private Set<String> WEIGHTMsgRecord = Sets.newConcurrentHashSet();
 
-    // 已经发起过受理的请求
-    private Map<String, bilayerBFTMsg> applyMsgRecord = Maps.newConcurrentMap();
     // 已经成功处理过的请求
     private Map<String,bilayerBFTMsg> doneMsgRecord = Maps.newConcurrentMap();
 
@@ -73,7 +73,8 @@ public class bilayerBFTNode {
     private BlockingQueue<bilayerBFTMsg> reqQueue = Queues.newLinkedBlockingDeque();
 
     // 权重累加值
-    private AtomicLong WeightSum = new AtomicLong();
+//    private AtomicLong WeightSum = new AtomicLong();
+    private AtomicLongMap<String> WeightSumMap = AtomicLongMap.create();
 
     private Timer timer;
 
@@ -140,9 +141,8 @@ public class bilayerBFTNode {
             logger.info("[节点" + index + "]收到异常消息" + msg);
             return;
         }
-        if(applyMsgRecord.containsKey(msg.getDataKey())) return; // 已经受理过
-        // PBFT中忽略了自己发的请求, 这边怎么处理暂时待定 [?]
-        applyMsgRecord.put(msg.getDataKey(), msg);
+        if(REQMsgRecord.contains(msg.getDataKey())) return;
+        REQMsgRecord.add(msg.getDataKey());
         // 根据第一层共识算法, 直接广播prepare消息
         bilayerBFTMsg PAMsg = new bilayerBFTMsg(msg);
         PAMsg.setType(MessageEnum.PREPARE);
@@ -246,7 +246,7 @@ public class bilayerBFTNode {
     // 发送当前请求
     private void doSendCurMsg() {
         // 记录通过RBC发送时间, 用于后续判断何时发送WEIGHT和NO_BLOCK消息
-        REQMsgTimeout.put(curREQMsg.getDataHash(), System.currentTimeMillis());
+        REQMsgTimeout.put(curREQMsg.getDataKey(), System.currentTimeMillis());
         doRBC();
     }
 

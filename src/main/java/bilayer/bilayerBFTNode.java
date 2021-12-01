@@ -8,7 +8,6 @@ import com.google.common.util.concurrent.AtomicLongMap;
 
 import java.util.*;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.atomic.AtomicLong;
 
 import enums.MessageEnum;
 import org.apache.commons.lang3.StringUtils;
@@ -34,46 +33,41 @@ public class bilayerBFTNode {
     private int groupSize;                                          // 组大小
     private int groupMaxF;                                          // 组中的容错数量
     private boolean isLeader;                                       // 是否是leader
-    // TODO 改为一个Map
-    private int weight;                                             // 用于是leader时的权重记录
 
 
     // 消息队列
     private BlockingQueue<bilayerBFTMsg> qbm = Queues.newLinkedBlockingQueue();
 
-    // RBC解码后区块记录
+    // RBC解码后区块记录 (DataKey)
     private Set<String> REQMsgRecord = Sets.newConcurrentHashSet();
 
-    // 准备阶段消息记录
+    // 准备阶段消息记录 (MsgKey)
     private Set<String> PAMsgRecord = Sets.newConcurrentHashSet();
-    // 记录已经收到的PA消息对应的数量
+    // 记录已经收到的PA消息对应的数量 (DataKey)
     private AtomicLongMap<String> PAMsgCountMap = AtomicLongMap.create();
 
-    // 提交阶段消息记录
+    // 提交阶段消息记录 (MsgKey)
     private Set<String> CMMsgRecord = Sets.newConcurrentHashSet();
-    // 记录已经收到的CM消息对应的数量
+    // 记录已经收到的CM消息对应的数量 (DateKey)
     private AtomicLongMap<String> CMMsgCountMap = AtomicLongMap.create();
 
-    // 回复消息数量
-    // 这边因为是Leader接受reply, 当有多条时, 会有不同的reply, 所以reply和weight都需要修改称为Map
-    // TODO 改为Map, 看看各自的记录的是DataKey还是MsgKey
-    private AtomicLong replyMsgCount = new AtomicLong();
-    // 记录已经收到的REPLY消息对应的数量
+    // 记录收到的回复消息 (MsgKey)
+    private Set<String> REPLYMsgRecord = Sets.newConcurrentHashSet();
+    // 记录已经收到的REPLY消息对应的数量 (DataKey)
     private AtomicLongMap<String> REPLYMsgCountMap = AtomicLongMap.create();
 
     private Set<String> WEIGHTMsgRecord = Sets.newConcurrentHashSet();
 
-    // 已经成功处理过的请求
+    // 已经成功处理过的请求 (DataKey)
     private Map<String,bilayerBFTMsg> doneMsgRecord = Maps.newConcurrentMap();
 
-    // 存入client利用RBC发出区块的时间, 用于判断何时发送WEIGHT和NO_BLOCK消息
+    // 存入client利用RBC发出区块的时间, 用于判断何时发送WEIGHT和NO_BLOCK消息 (DataKey)
     private Map<String,Long> REQMsgTimeout = Maps.newHashMap();
 
     // 请求队列
     private BlockingQueue<bilayerBFTMsg> reqQueue = Queues.newLinkedBlockingDeque();
 
-    // 权重累加值
-//    private AtomicLong WeightSum = new AtomicLong();
+    // 权重累加值 (DataKey)
     private AtomicLongMap<String> WeightSumMap = AtomicLongMap.create();
 
     private Timer timer;
@@ -203,12 +197,14 @@ public class bilayerBFTNode {
         }
     }
 
-    // 因为请求的是下面的节点, 而reply发给了leader, 所以进不了下面的判断
-    // TODO 这边需要修改判断curREQMsg为判断一个Set
     private void onReply(bilayerBFTMsg msg) {
-        if(curREQMsg == null || !curREQMsg.getDataHash().equals(msg.getDataHash())) return;
-        weight = (int) replyMsgCount.incrementAndGet();
-        // TODO 完成后weight变回0 (已经打算用Map, 就不需要变为0了)
+        if(!REQMsgRecord.contains(msg.getDataKey())) return;
+        System.out.println("节点" + index + "收到消息" + msg);
+        String msgKey = msg.getMsgKey();
+        if(REPLYMsgRecord.contains(msgKey)) {
+            return;
+        }
+        REPLYMsgCountMap.incrementAndGet(msg.getDataKey());
 //        if(weight >= groupMaxF+1) {
 //            logger.info("消息确认成功[" + index + "]:" + msg);
 //            replyMsgCount.set(0);
@@ -223,7 +219,6 @@ public class bilayerBFTNode {
     }
 
     // 请求入列
-    // TODO 入列时需要给它的Leader也存这个, 之后leader判断来替换判断curREQMsg
     public void req(String data) {
         bilayerBFTMsg REQMsg = new bilayerBFTMsg(MessageEnum.REQUEST, index);
         REQMsg.setDataHash(data);

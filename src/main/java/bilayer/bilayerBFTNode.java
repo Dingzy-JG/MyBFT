@@ -26,7 +26,9 @@ public class bilayerBFTNode {
     private int index;                                              // 该节点的标识
     private bilayerBFTMsg curREQMsg;                                // 当前正在处理的请求
     private long sendWeightTime = SEND_WEIGHT_TIME;                 // 隔多久发送WEIGHT消息, 根据实际情况调整
-    private long sendNoBlockTime = SEND_NO_BLOCK_TIME;              // 隔多久发送NO_BLOCK消息, 根据实际情况调整
+    // TODO 设置隔多久没收到就发送更好实现一些
+    private long gatherNoBlockTime = GATHER_NO_BLOCK_TIME;          // 收集多久的NO_BLOCK消息
+    private long sendProofHonestTime = SEND_PROOF_HONEST_TIME;      // 隔多久发送PROOF_HONEST消息, 根据实际情况调整
     public double totalSendMsgLen = 0;                              // 发送的所有消息的长度之和
     private volatile boolean isRunning = false;                     // 是否正在运行, 可用于设置Crash节点
 
@@ -57,6 +59,9 @@ public class bilayerBFTNode {
     private AtomicLongMap<String> REPLYMsgCountMap = AtomicLongMap.create();
 
     private Set<String> WEIGHTMsgRecord = Sets.newConcurrentHashSet();
+
+    //记录已经收到的NO_BLOCK消息的数量 (DataKey)
+    private AtomicLongMap<String> NO_BLOCKMsgCountMap = AtomicLongMap.create();
 
     // 已经成功处理过的请求 (DataKey)
     private Map<String,bilayerBFTMsg> doneMsgRecord = Maps.newConcurrentMap();
@@ -124,6 +129,12 @@ public class bilayerBFTNode {
                     break;
                 case WEIGHT:
                     onWeight(msg);
+                    break;
+                case NO_REPLY:
+                    onNoReply(msg);
+                    break;
+                case NO_BLOCK:
+                    onNoBlock(msg);
                     break;
                 case WABA:
                     onWABA(msg);
@@ -218,7 +229,37 @@ public class bilayerBFTNode {
     }
 
     private void onWeight(bilayerBFTMsg msg) {
-        System.out.println("节点"+index+"收到消息"+msg);
+        long weight = REPLYMsgCountMap.get(msg.getDataKey());
+        if(weight != 0) {
+            // 组内接受到了能通过验证的reply消息, 在主节点之间广播对应的WABA消息
+            bilayerBFTMsg WABAMsg = new bilayerBFTMsg(msg);
+            WABAMsg.setType(MessageEnum.WABA);
+            WABAMsg.setSenderId(index);
+            WABAMsg.setB(1);
+            WABAMsg.setWeight(weight);
+            WeightSumMap.addAndGet(msg.getDataKey() + "1", weight);
+            publishToLeaders(WABAMsg);
+        } else {
+            // 否则就向组员广播NO_REPLY消息, 收集组员投票为0的签名碎片
+            bilayerBFTMsg NO_REPLYMsg = new bilayerBFTMsg(msg);
+            NO_REPLYMsg.setType(MessageEnum.NO_REPLY);
+            NO_REPLYMsg.setSenderId(index);
+            publishInsideGroup(NO_REPLYMsg);
+        }
+    }
+
+    // TODO 待测试
+    private void onNoReply(bilayerBFTMsg msg) {
+        if(!REQMsgRecord.contains(msg.getDataKey())) return;
+        // 没有收到对应的区块, 则向其leader发送NO_BLOCK消息
+        bilayerBFTMsg NO_BLOCKMsg = new bilayerBFTMsg(msg);
+        NO_BLOCKMsg.setType(MessageEnum.NO_BLOCK);
+        NO_BLOCKMsg.setSenderId(index);
+        NO_BLOCKMsg.setB(0);
+        send(getLeaderIndex(index), NO_BLOCKMsg);
+    }
+
+    private void onNoBlock(bilayerBFTMsg msg) {
 
     }
 
@@ -264,9 +305,9 @@ public class bilayerBFTNode {
         publishToAll(curREQMsg);
     }
 
-    // 检测WEIGHT和NO_BLOCK的发送时间
+    // 检测WEIGHT和PROOF_HONEST的发送时间
     private void checkTimer() {
-        // TODO 待补充NO_BLOCK消息
+        // TODO 待补充PROOF_HONEST消息
         List<String> weightList = Lists.newArrayList();
         for(Map.Entry<String, Long> item : REQMsgTimeout.entrySet()) {
             if(System.currentTimeMillis() - item.getValue() > sendWeightTime) {

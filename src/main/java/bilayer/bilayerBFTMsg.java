@@ -12,6 +12,7 @@ public class bilayerBFTMsg {
     private int primeNodeId;                   // 发起请求的节点id
     private String dataHash;                   // 区块的Hash值, 用于标识不同区块
     private Integer b;                         // 输入ABA的值(0, 1, null)
+    private Long weight;                       // 权重值
     private long timestamp;                    // 时间戳
     private BigInteger signature;              // 签名
     private boolean isValid;                   // 消息校验是否通过
@@ -35,6 +36,7 @@ public class bilayerBFTMsg {
         this.primeNodeId = msg.primeNodeId;
         this.dataHash = msg.dataHash;
         this.b = msg.b;
+        this.weight = msg.weight;
         this.timestamp = msg.timestamp;
         this.signature = msg.signature;
         this.isValid = msg.isValid;
@@ -153,17 +155,33 @@ public class bilayerBFTMsg {
         isValid = valid;
     }
 
+    public void setB(Integer b) {
+        this.b = b;
+    }
+
+    public Long getWeight() {
+        return weight;
+    }
+
+    public void setWeight(Long weight) {
+        this.weight = weight;
+    }
+
     @Override
     public String toString() {
-        return "bilayerBFTMsg {" +
-            "isValid=" + isValid +
-            ", type=" + type +
-            ", primeNodeId=" + primeNodeId +
-            ", senderId=" + senderId +
-            ", senderPK=" + senderPK +
-            ", dataHash=" + dataHash +
-            ", b=" + b +
-            ", timestamp=" + timestamp +
-            ", signature=" + signature + '}';
+        String result = "bilayerBFTMsg {";
+        if(!isValid) {
+            result += "isValid=" + isValid + ", ";
+        }
+        result += "type=" + type +
+                  ", primeNodeId=" + primeNodeId +
+                  ", senderId=" + senderId +
+                  ", dataHash=" + dataHash;
+        if(b != null) result += (", b=" + b);
+        if(weight != null) result += ", weight=" + weight;
+        if(senderPK != null) result += ", senderPK=" + senderPK;
+        if(signature != null) result += ", signature=" + signature;
+        result += '}';
+        return result;
     }
 }

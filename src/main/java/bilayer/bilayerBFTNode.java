@@ -25,10 +25,6 @@ public class bilayerBFTNode {
     private int maxF;                                               // 最大容错数, 对应论文中的f
     private int index;                                              // 该节点的标识
     private bilayerBFTMsg curREQMsg;                                // 当前正在处理的请求
-    private long sendWeightTime = SEND_WEIGHT_TIME;                 // 隔多久发送WEIGHT消息, 根据实际情况调整
-    // TODO 设置隔多久没收到就发送更好实现一些
-    private long gatherNoBlockTime = GATHER_NO_BLOCK_TIME;          // 收集多久的NO_BLOCK消息
-    private long sendProofHonestTime = SEND_PROOF_HONEST_TIME;      // 隔多久发送PROOF_HONEST消息, 根据实际情况调整
     public double totalSendMsgLen = 0;                              // 发送的所有消息的长度之和
     private volatile boolean isRunning = false;                     // 是否正在运行, 可用于设置Crash节点
 
@@ -58,16 +54,17 @@ public class bilayerBFTNode {
     // 记录已经收到的REPLY消息对应的数量 (DataKey)
     private AtomicLongMap<String> REPLYMsgCountMap = AtomicLongMap.create();
 
-    private Set<String> WEIGHTMsgRecord = Sets.newConcurrentHashSet();
-
     //记录已经收到的NO_BLOCK消息的数量 (DataKey)
     private AtomicLongMap<String> NO_BLOCKMsgCountMap = AtomicLongMap.create();
 
     // 已经成功处理过的请求 (DataKey)
-    private Map<String,bilayerBFTMsg> doneMsgRecord = Maps.newConcurrentMap();
+    private Map<String, bilayerBFTMsg> doneMsgRecord = Maps.newConcurrentMap();
 
     // 存入client利用RBC发出区块的时间, 用于判断何时发送WEIGHT和NO_BLOCK消息 (DataKey)
-    private Map<String,Long> REQMsgTimeout = Maps.newHashMap();
+    private Map<String, Long> REQTimer = Maps.newHashMap();
+
+    // 存入发送NO_REPLY消息时的时间, 用于收集NO_BLOCK时花了多久
+    private Map<String, Long> NO_REPLYTimer = Maps.newHashMap();
 
     // 请求队列
     private BlockingQueue<bilayerBFTMsg> reqQueue = Queues.newLinkedBlockingDeque();
@@ -104,7 +101,7 @@ public class bilayerBFTNode {
             @Override
             public void run() {
                 doReq();
-                checkTimer();
+//                checkTimer();
             }
         }, 100, 100);
         return this;
@@ -256,6 +253,7 @@ public class bilayerBFTNode {
         NO_BLOCKMsg.setType(MessageEnum.NO_BLOCK);
         NO_BLOCKMsg.setSenderId(index);
         NO_BLOCKMsg.setB(0);
+//        NO_REPLYTimer.put(NO_BLOCKMsg.getDataKey(), System.currentTimeMillis());
         send(getLeaderIndex(index), NO_BLOCKMsg);
     }
 
@@ -295,7 +293,16 @@ public class bilayerBFTNode {
     // 发送当前请求
     private void doSendCurMsg() {
         // 记录通过RBC发送时间, 用于后续判断何时发送WEIGHT和NO_BLOCK消息
-        REQMsgTimeout.put(curREQMsg.getDataKey(), System.currentTimeMillis());
+        REQTimer.put(curREQMsg.getDataKey(), System.currentTimeMillis());
+
+        // 达到指定时间后发送WEIGHT消息
+        TimerManager.schedule(() -> {
+            bilayerBFTMsg WEIGHTMsg = new bilayerBFTMsg(curREQMsg);
+            WEIGHTMsg.setType(MessageEnum.WEIGHT);
+            publishToLeaders(WEIGHTMsg);
+            return null;
+        }, SEND_WEIGHT_TIME);
+
         doRBC();
     }
 
@@ -308,22 +315,11 @@ public class bilayerBFTNode {
     // 检测WEIGHT和PROOF_HONEST的发送时间
     private void checkTimer() {
         // TODO 待补充PROOF_HONEST消息
-        List<String> weightList = Lists.newArrayList();
-        for(Map.Entry<String, Long> item : REQMsgTimeout.entrySet()) {
-            if(System.currentTimeMillis() - item.getValue() > sendWeightTime) {
-                // 如果没发送过WEIGHT消息, 则发送
-                // 这边暂时不知道要不要加上判断是否要检测是否为senderId
-                 if(!WEIGHTMsgRecord.contains(item.getKey())) {
-                     // TODO 给leader发送WEIGHT消息
-                     bilayerBFTMsg WEIGHTMsg = new bilayerBFTMsg(curREQMsg);
-                     // 本来发送者就是自己, 不用再修改了
-                     WEIGHTMsg.setType(MessageEnum.WEIGHT);
-                     // 向所有leaders发送WEIGHT消息, 通知它们进入WABA阶段
-                     publishToLeaders(WEIGHTMsg);
-                     WEIGHTMsgRecord.add(WEIGHTMsg.getDataKey());
-                 }
-            }
-        }
+        // WEIGHT
+//        // 收集NO_BLOCK的时长
+//        for(Map.Entry<String, Long> item: NO_REPLYTimer.entrySet()) {
+//
+//        }
 
     }
 

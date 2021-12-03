@@ -1,13 +1,15 @@
 package constant;
 
+import bilayer.bilayerBFTMain;
+
 public class ConstantValue {
 
     // =====================================共用的值=====================================
 
-    public static final int NODE_SIZE = 32;
+    public static final int NODE_SIZE = 4;
     public static final int TRANSACTION_NUMBER = 1;
 //    public static final int TRANSACTION_SIZE = 1 * 1024 * 1024 * 8; // 1M
-    public static final int TOTAL_BANDWIDTH = 100 * 1024 * 1024 * 8;
+    public static final int TOTAL_BANDWIDTH = 1 * 1024 * 1024 * 8;
     public static final int BANDWIDTH = TOTAL_BANDWIDTH / NODE_SIZE;
     public static final int MSG_TYPE_ID_SIZE = 4; // 用于标识消息类型, 类型不多于16种, 可以标识完全
     public static final int TIMESTAMP_SIZE = 64; //时间戳为long类型, 64位
@@ -34,12 +36,23 @@ public class ConstantValue {
     public static final int OFFSET = 11;
     public static final int WEIGHT_SIZE = 16;
     public static final int PK_SIZE = 512;
-    public static final long SEND_WEIGHT_TIME = 2000; // 根据实际情况设置
-    public static final long GATHER_NO_BLOCK_TIME = 1000; // 收集多久的NO_BLOCK消息, 设置隔多久没收到就发送更好实现一些
-    public static final long SEND_PROOF_HONEST_TIME = 60000; // (1min)根据实际情况设置
     public static final long GROUP_INSIDE_FAST_NET_DELAY = 10;
     public static final long GROUP_INSIDE_SLOW_NET_DELAY = 20;
     public static final long GROUP_OUTSIDE_FAST_NET_DELAY = 10;
     public static final long GROUP_OUTSIDE_SLOW_NET_DELAY = 60;
+
+    // 计算理论最长用时
+    public static final long SEND_WEIGHT_TIME =
+        // 1. 广播给所有节点request的时长 + 发送延迟
+        (MSG_TYPE_ID_SIZE + HASH_SIZE + TIMESTAMP_SIZE + ID_SIZE + PK_SIZE + SIGNATURE_SIZE) * 1000 * NODE_SIZE / BANDWIDTH + GROUP_OUTSIDE_SLOW_NET_DELAY +
+        // 2. 组内广播prepare消息
+        (MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + SIGNATURE_SIZE) * 1000 * bilayerBFTMain.groupSizeArr[0] / BANDWIDTH + GROUP_INSIDE_SLOW_NET_DELAY +
+        // 3. 组内广播commit消息
+        (MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + SIGNATURE_SIZE) * 1000 * bilayerBFTMain.groupSizeArr[0] / BANDWIDTH + GROUP_INSIDE_SLOW_NET_DELAY +
+        // 4. 给leader发reply消息
+        (MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + RESULT_SIZE + SIGNATURE_SIZE + SIGNATURE_SIZE) * 1000 / BANDWIDTH + GROUP_INSIDE_SLOW_NET_DELAY;
+
+    public static final long GATHER_NO_BLOCK_TIME = 1000; // 收集多久的NO_BLOCK消息
+    public static final long SEND_PROOF_HONEST_TIME = 60000; // (1min)根据实际情况设置
 
 }

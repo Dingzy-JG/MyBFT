@@ -58,15 +58,15 @@ public class PBFTNode {
     private AtomicLongMap<Integer> VCMsgCountMap = AtomicLongMap.create();
 
     // 作为主节点时已经受理过的请求
-    private Map<String,PBFTMsg> applyMsgRecord = Maps.newConcurrentMap();
+    private Map<String, PBFTMsg> applyMsgRecord = Maps.newConcurrentMap();
     // 作为非主节点时成功处理过的请求
-    private Map<String,PBFTMsg> doneMsgRecord = Maps.newConcurrentMap();
+    private Map<String, PBFTMsg> doneMsgRecord = Maps.newConcurrentMap();
 
     // 存入发PPMsg的时间, 用于判断PBFT超时
-    private Map<String,Long> PBFTMsgTimeout = Maps.newHashMap();
+    private Map<String, Long> PBFTMsgTimeout = Maps.newHashMap();
     // 存入发请求消息的时间
     // 如果请求超时, view加1, 重试
-    private Map<String,Long> REQMsgTimeout = Maps.newHashMap();
+    private Map<String, Long> REQMsgTimeout = Maps.newHashMap();
 
     // 请求队列
     private BlockingQueue<PBFTMsg> reqQueue = Queues.newLinkedBlockingDeque();

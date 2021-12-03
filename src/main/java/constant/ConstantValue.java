@@ -52,7 +52,11 @@ public class ConstantValue {
         // 4. 给leader发reply消息
         (MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + RESULT_SIZE + SIGNATURE_SIZE + SIGNATURE_SIZE) * 1000 / BANDWIDTH + GROUP_INSIDE_SLOW_NET_DELAY;
 
-    public static final long GATHER_NO_BLOCK_TIME = 1000; // 收集多久的NO_BLOCK消息
+    public static final long GATHER_NO_BLOCK_TIME =
+        // 1. 也算上发送no_reply消息的时长
+        (MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + SIGNATURE_SIZE) * 1000 * bilayerBFTMain.groupSizeArr[0] / BANDWIDTH + GROUP_INSIDE_SLOW_NET_DELAY +
+        // 2. 组内节点给leader发no_block消息的时长
+        (MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + RESULT_SIZE + SIGNATURE_SIZE + SIGNATURE_SIZE) * 1000 / BANDWIDTH + GROUP_INSIDE_SLOW_NET_DELAY;
     public static final long SEND_PROOF_HONEST_TIME = 60000; // (1min)根据实际情况设置
 
 }

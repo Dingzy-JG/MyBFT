@@ -123,11 +123,11 @@ public class bilayerBFTMsg {
         this.dataHash = dataHash;
     }
 
-    public int getB() {
+    public Integer getB() {
         return b;
     }
 
-    public void setB(int b) {
+    public void setB(Integer b) {
         this.b = b;
     }
 
@@ -153,10 +153,6 @@ public class bilayerBFTMsg {
 
     public void setValid(boolean valid) {
         isValid = valid;
-    }
-
-    public void setB(Integer b) {
-        this.b = b;
     }
 
     public Long getWeight() {

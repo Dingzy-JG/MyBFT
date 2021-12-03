@@ -54,7 +54,9 @@ public class bilayerBFTNode {
     // 记录已经收到的REPLY消息对应的数量 (DataKey)
     private AtomicLongMap<String> REPLYMsgCountMap = AtomicLongMap.create();
 
-    //记录已经收到的NO_BLOCK消息的数量 (DataKey)
+    // 记录收到的NO_BLOCK消息 (MsgKey)
+    private Set<String> NO_BLOCKMsgRecord = Sets.newConcurrentHashSet();
+    // 记录已经收到的NO_BLOCK消息的数量 (DataKey)
     private AtomicLongMap<String> NO_BLOCKMsgCountMap = AtomicLongMap.create();
 
     // 已经成功处理过的请求 (DataKey)
@@ -165,10 +167,8 @@ public class bilayerBFTNode {
             return;
         }
         String msgKey = msg.getMsgKey();
-        if(PAMsgRecord.contains(msgKey)) {
-            // 说明已经投过票, 不能重复投
-            return;
-        }
+        // 说明已经投过票, 不能重复投
+        if(PAMsgRecord.contains(msgKey)) return;
         // 记录收到的PAMsg
         PAMsgRecord.add(msgKey);
         // 票数+1, 并返回+1后的票数
@@ -189,14 +189,10 @@ public class bilayerBFTNode {
             return;
         }
         String msgKey = msg.getMsgKey();
-        if(CMMsgRecord.contains(msgKey)) {
-            // 已经投过票, 不能重复投
-            return;
-        }
-        if(!PAMsgRecord.contains(msgKey)) {
-            // 必须先过准备阶段
-            return;
-        }
+        // 已经投过票, 不能重复投
+        if(CMMsgRecord.contains(msgKey)) return;
+        // 必须先过准备阶段
+        if(!PAMsgRecord.contains(msgKey)) return;
         // 记录收到的CMMsg
         CMMsgRecord.add(msgKey);
         // 票数+1, 并返回+1后的票数
@@ -212,12 +208,10 @@ public class bilayerBFTNode {
     }
 
     private void onReply(bilayerBFTMsg msg) {
-        if(!REQMsgRecord.contains(msg.getDataKey())) return;
-        String msgKey = msg.getMsgKey();
-        if(REPLYMsgRecord.contains(msgKey)) {
-            return;
-        }
-        REPLYMsgCountMap.incrementAndGet(msg.getDataKey());
+        String dataKey = msg.getDataKey();
+        if(!REQMsgRecord.contains(dataKey)) return;
+        if(REPLYMsgRecord.contains(msg.getMsgKey())) return;
+        REPLYMsgCountMap.incrementAndGet(dataKey);
 //        if(weight >= groupMaxF+1) {
 //            logger.info("消息确认成功[" + index + "]:" + msg);
 //            replyMsgCount.set(0);
@@ -226,22 +220,36 @@ public class bilayerBFTNode {
     }
 
     private void onWeight(bilayerBFTMsg msg) {
-        long weight = REPLYMsgCountMap.get(msg.getDataKey());
-        if(weight != 0) {
+        String dataKey = msg.getDataKey();
+        long weight_1 = REPLYMsgCountMap.get(dataKey);
+        if(weight_1 != 0) {
             // 组内接受到了能通过验证的reply消息, 在主节点之间广播对应的WABA消息
-            bilayerBFTMsg WABAMsg = new bilayerBFTMsg(msg);
-            WABAMsg.setType(MessageEnum.WABA);
-            WABAMsg.setSenderId(index);
-            WABAMsg.setB(1);
-            WABAMsg.setWeight(weight);
-            WeightSumMap.addAndGet(msg.getDataKey() + "1", weight);
-            publishToLeaders(WABAMsg);
+            bilayerBFTMsg WABA_1_Msg = new bilayerBFTMsg(msg);
+            WABA_1_Msg.setType(MessageEnum.WABA);
+            WABA_1_Msg.setSenderId(index);
+            WABA_1_Msg.setB(1);
+            WABA_1_Msg.setWeight(weight_1);
+            WeightSumMap.addAndGet(dataKey + "1", weight_1);
+            publishToLeaders(WABA_1_Msg);
         } else {
             // 否则就向组员广播NO_REPLY消息, 收集组员投票为0的签名碎片
             bilayerBFTMsg NO_REPLYMsg = new bilayerBFTMsg(msg);
             NO_REPLYMsg.setType(MessageEnum.NO_REPLY);
             NO_REPLYMsg.setSenderId(index);
             publishInsideGroup(NO_REPLYMsg);
+
+            // 达到指定的收集NO_BLOCK时间后, 发送内容为0的WABA消息
+            TimerManager.schedule(() -> {
+                bilayerBFTMsg WABA_0_Msg = new bilayerBFTMsg(msg);
+                long weight_0 = NO_BLOCKMsgCountMap.get(dataKey);
+                WABA_0_Msg.setType(MessageEnum.WABA);
+                WABA_0_Msg.setSenderId(index);
+                WABA_0_Msg.setB(0);
+                WABA_0_Msg.setWeight(weight_0);
+                WeightSumMap.addAndGet(dataKey + "0", weight_0);
+                publishToLeaders(WABA_0_Msg);
+                return null;
+            }, GATHER_NO_BLOCK_TIME);
         }
     }
 
@@ -253,12 +261,14 @@ public class bilayerBFTNode {
         NO_BLOCKMsg.setType(MessageEnum.NO_BLOCK);
         NO_BLOCKMsg.setSenderId(index);
         NO_BLOCKMsg.setB(0);
-//        NO_REPLYTimer.put(NO_BLOCKMsg.getDataKey(), System.currentTimeMillis());
         send(getLeaderIndex(index), NO_BLOCKMsg);
     }
 
     private void onNoBlock(bilayerBFTMsg msg) {
-
+        String dataKey = msg.getDataKey();
+        if(!REQMsgRecord.contains(dataKey)) return;
+        if(NO_BLOCKMsgRecord.contains(msg.getMsgKey())) return;
+        NO_BLOCKMsgCountMap.incrementAndGet(dataKey);
     }
 
     private void onWABA(bilayerBFTMsg msg) {

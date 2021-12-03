@@ -31,7 +31,6 @@ public class bilayerBFTNode {
     private int groupMaxF;                                          // 组中的容错数量
     private boolean isLeader;                                       // 是否是leader
 
-
     // 消息队列
     private BlockingQueue<bilayerBFTMsg> qbm = Queues.newLinkedBlockingQueue();
 
@@ -40,38 +39,49 @@ public class bilayerBFTNode {
 
     // 准备阶段消息记录 (MsgKey)
     private Set<String> PAMsgRecord = Sets.newConcurrentHashSet();
-    // 记录已经收到的PA消息对应的数量 (DataKey)
+    // 记录已经收到的PA消息对应的数量 <DataKey, count>
     private AtomicLongMap<String> PAMsgCountMap = AtomicLongMap.create();
 
     // 提交阶段消息记录 (MsgKey)
     private Set<String> CMMsgRecord = Sets.newConcurrentHashSet();
-    // 记录已经收到的CM消息对应的数量 (DateKey)
+    // 记录已经收到的CM消息对应的数量 <DataKey, count>
     private AtomicLongMap<String> CMMsgCountMap = AtomicLongMap.create();
 
     // 记录收到的回复消息 (MsgKey)
     private Set<String> REPLYMsgRecord = Sets.newConcurrentHashSet();
-    // 记录已经收到的REPLY消息对应的数量 (DataKey)
+    // 记录已经收到的REPLY消息对应的数量 <DataKey, count>
     private AtomicLongMap<String> REPLYMsgCountMap = AtomicLongMap.create();
 
     // 记录收到的NO_BLOCK消息 (MsgKey)
     private Set<String> NO_BLOCKMsgRecord = Sets.newConcurrentHashSet();
-    // 记录已经收到的NO_BLOCK消息的数量 (DataKey)
+    // 记录已经收到的NO_BLOCK消息的数量 <DataKey, count>
     private AtomicLongMap<String> NO_BLOCKMsgCountMap = AtomicLongMap.create();
 
-    // 已经成功处理过的请求 (DataKey)
-    private Map<String, bilayerBFTMsg> doneMsgRecord = Maps.newConcurrentMap();
+    // 记录收到的WABA消息 (MsgKey)
+    private Set<String> WABAMsgRecord = Sets.newConcurrentHashSet();
+    // 记录已经发送过的WABA消息 (DataKey)
+    private Set<String> haveSentWABA_B_Msg = Sets.newConcurrentHashSet();
+    // 权重累加值 <DataKey, weightSum>
+    private AtomicLongMap<String> weightSumMap = AtomicLongMap.create();
 
-    // 存入client利用RBC发出区块的时间, 用于判断何时发送WEIGHT和NO_BLOCK消息 (DataKey)
+    // 存储对应的est <DataKey, b>
+    private Map<String, Integer> estMap = Maps.newConcurrentMap();
+    // 存储WABA的轮数 <DataKey, r>
+    private Map<String, Integer> rMap = Maps.newConcurrentMap();
+    // 存储WABA是否已经decide <DataKey, decided>
+    private Map<String, Boolean> decidedMap = Maps.newConcurrentMap();
+    // 存储WABA的value_r集合 <DataKey, value_r>
+    private Map<String, Set<Integer>> valueMap = Maps.newConcurrentMap();
+
+    // 已经成功处理过的请求 <DataKey, 完成时间戳>
+    private Map<String, Long> doneMsgRecord = Maps.newConcurrentMap();
+
+    // 存入client利用RBC发出区块的时间, 用于判断何时发送WEIGHT和NO_BLOCK消息 <DataKey, 开始时间戳>
+    // 因为请求是一个一个执行的, 所以这个Map不需要使用并发的
     private Map<String, Long> REQTimer = Maps.newHashMap();
-
-    // 存入发送NO_REPLY消息时的时间, 用于收集NO_BLOCK时花了多久
-    private Map<String, Long> NO_REPLYTimer = Maps.newHashMap();
 
     // 请求队列
     private BlockingQueue<bilayerBFTMsg> reqQueue = Queues.newLinkedBlockingDeque();
-
-    // 权重累加值 (DataKey)
-    private AtomicLongMap<String> WeightSumMap = AtomicLongMap.create();
 
     private Timer timer;
 
@@ -177,7 +187,6 @@ public class bilayerBFTNode {
             bilayerBFTMsg CMMsg = new bilayerBFTMsg(msg);
             CMMsg.setType(MessageEnum.COMMIT);
             CMMsg.setSenderId(index);
-            doneMsgRecord.put(CMMsg.getDataKey(), CMMsg);
             publishInsideGroup(CMMsg);
         }
     }
@@ -207,10 +216,12 @@ public class bilayerBFTNode {
     }
 
     private void onReply(bilayerBFTMsg msg) {
+        String msgKey = msg.getMsgKey();
         String dataKey = msg.getDataKey();
         if(!REQMsgRecord.contains(dataKey)) return;
-        if(REPLYMsgRecord.contains(msg.getMsgKey())) return;
+        if(REPLYMsgRecord.contains(msgKey)) return;
         REPLYMsgCountMap.incrementAndGet(dataKey);
+        REPLYMsgRecord.add(msgKey);
 //        if(weight >= groupMaxF+1) {
 //            logger.info("消息确认成功[" + index + "]:" + msg);
 //            replyMsgCount.set(0);
@@ -228,8 +239,11 @@ public class bilayerBFTNode {
             WABA_1_Msg.setSenderId(index);
             WABA_1_Msg.setB(1);
             WABA_1_Msg.setWeight(weight_1);
-            WeightSumMap.addAndGet(dataKey + "1", weight_1);
-            publishToLeaders(WABA_1_Msg);
+            // 因为可能存在加起来权重超过了f+1直接发过了, 不判断的话可能存在重复发送
+            if(!haveSentWABA_B_Msg.contains(dataKey + "1")) {
+                publishToLeaders(WABA_1_Msg);
+                haveSentWABA_B_Msg.add(dataKey + "1");
+            }
         } else {
             // 否则就向组员广播NO_REPLY消息, 收集组员投票为0的签名碎片
             bilayerBFTMsg NO_REPLYMsg = new bilayerBFTMsg(msg);
@@ -245,8 +259,10 @@ public class bilayerBFTNode {
                 WABA_0_Msg.setSenderId(index);
                 WABA_0_Msg.setB(0);
                 WABA_0_Msg.setWeight(weight_0);
-                WeightSumMap.addAndGet(dataKey + "0", weight_0);
-                publishToLeaders(WABA_0_Msg);
+                if(!haveSentWABA_B_Msg.contains(dataKey + "0")) {
+                    publishToLeaders(WABA_0_Msg);
+                    haveSentWABA_B_Msg.add(dataKey + "0");
+                }
                 return null;
             }, GATHER_NO_BLOCK_TIME);
         }
@@ -263,12 +279,36 @@ public class bilayerBFTNode {
     }
 
     private void onNoBlock(bilayerBFTMsg msg) {
-        if(NO_BLOCKMsgRecord.contains(msg.getMsgKey())) return;
+        String msgKey = msg.getMsgKey();
+        if(NO_BLOCKMsgRecord.contains(msgKey)) return;
         NO_BLOCKMsgCountMap.incrementAndGet(msg.getDataKey());
+        NO_BLOCKMsgRecord.add(msgKey);
     }
 
     private void onWABA(bilayerBFTMsg msg) {
-        System.out.println("节点"+index+"收到消息"+msg);
+        String msgKey = msg.getMsgKey();
+        String dataKey_b = msg.getDataKey() + msg.getB();
+        long weight = msg.getWeight();
+        if(WABAMsgRecord.contains(msgKey)) return;
+        long weightSum = weightSumMap.addAndGet(dataKey_b, weight);
+        WABAMsgRecord.add(msgKey);
+        // 权重之和大于等于f+1, 且未发送对应的WABA
+        if(weightSum >= maxF + 1 && !haveSentWABA_B_Msg.contains(dataKey_b)) {
+            bilayerBFTMsg WABA_B_Msg = new bilayerBFTMsg(msg);
+            // 类型已经是WABA, b也和收到的msg中的一致
+            WABA_B_Msg.setSenderId(index);
+            // 直接代表全组发
+            WABA_B_Msg.setWeight(Long.valueOf(groupSize));
+            publishToLeaders(WABA_B_Msg);
+            haveSentWABA_B_Msg.add(dataKey_b);
+        }
+        // 权重之和大于等于2f+1
+        // TODO 只在第一次超过2f+1时才执行
+        if(weightSum >= 2*maxF + 1) {
+            // TODO 执行操作
+
+        }
+
     }
 
     // 执行对应请求

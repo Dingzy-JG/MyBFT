@@ -1,6 +1,5 @@
 package bilayer;
 
-import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Queues;
 import com.google.common.collect.Sets;
@@ -253,9 +252,8 @@ public class bilayerBFTNode {
         }
     }
 
-    // TODO 待测试
     private void onNoReply(bilayerBFTMsg msg) {
-        if(!REQMsgRecord.contains(msg.getDataKey())) return;
+        if(REQMsgRecord.contains(msg.getDataKey())) return;
         // 没有收到对应的区块, 则向其leader发送NO_BLOCK消息
         bilayerBFTMsg NO_BLOCKMsg = new bilayerBFTMsg(msg);
         NO_BLOCKMsg.setType(MessageEnum.NO_BLOCK);
@@ -265,10 +263,8 @@ public class bilayerBFTNode {
     }
 
     private void onNoBlock(bilayerBFTMsg msg) {
-        String dataKey = msg.getDataKey();
-        if(!REQMsgRecord.contains(dataKey)) return;
         if(NO_BLOCKMsgRecord.contains(msg.getMsgKey())) return;
-        NO_BLOCKMsgCountMap.incrementAndGet(dataKey);
+        NO_BLOCKMsgCountMap.incrementAndGet(msg.getDataKey());
     }
 
     private void onWABA(bilayerBFTMsg msg) {
@@ -325,12 +321,6 @@ public class bilayerBFTNode {
     // 检测WEIGHT和PROOF_HONEST的发送时间
     private void checkTimer() {
         // TODO 待补充PROOF_HONEST消息
-        // WEIGHT
-//        // 收集NO_BLOCK的时长
-//        for(Map.Entry<String, Long> item: NO_REPLYTimer.entrySet()) {
-//
-//        }
-
     }
 
     // 向所有节点广播 (组内组外)

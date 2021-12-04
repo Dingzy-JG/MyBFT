@@ -37,6 +37,8 @@ public class bilayerBFTMain {
         // 用来测试
         nodes[1].req("test"+1);
 
+        nodes[2].req("test"+2);
+
         // 测试没收到对应区块
 //        nodes[1].publishToLeaders(new bilayerBFTMsg(MessageEnum.WEIGHT, 1));
 

@@ -79,12 +79,17 @@ public class bilayerBFTNode {
     // 存储WABA的val_r集合 <DataKey_r, val_r>
     private Map<String, Set<Integer>> valMap = Maps.newConcurrentMap();
 
-    // 已经成功处理过的请求 <DataKey, 完成时间戳>
-    private Map<String, Long> doneMsgRecord = Maps.newConcurrentMap();
+    // 记录收到的AFFIRM_HONEST消息 (MsgKey)
+    private Set<String> AFFIRM_HONESTMsgRecord = Sets.newConcurrentHashSet();
+    // 记录已经收到的NO_BLOCK消息的数量 <DataKey, count>
+    private AtomicLongMap<String> AFFIRM_HONESTMsgCountMap = AtomicLongMap.create();
 
     // 存入client利用RBC发出区块的时间, 用于判断何时发送WEIGHT和NO_BLOCK消息 <DataKey, 开始时间戳>
     // 因为请求是一个一个执行的, 所以这个Map不需要使用并发的
     private Map<String, Long> REQTimer = Maps.newHashMap();
+
+    // 已经成功处理过的请求 <DataKey, 完成时间戳>
+    private Map<String, Long> doneTimer = Maps.newConcurrentMap();
 
     // 请求队列
     private BlockingQueue<bilayerBFTMsg> reqQueue = Queues.newLinkedBlockingDeque();
@@ -155,6 +160,15 @@ public class bilayerBFTNode {
                     break;
                 case AUX:
                     onAUX(msg);
+                    break;
+                case WABA_RESULT:
+                    onWABAResult(msg);
+                    break;
+                case PROOF_HONEST:
+                    onProofHonest(msg);
+                    break;
+                case AFFIRM_HONEST:
+                    onAffirmHonest(msg);
                     break;
                 default:
                     break;
@@ -231,11 +245,6 @@ public class bilayerBFTNode {
         if(REPLYMsgRecord.contains(msgKey)) return;
         REPLYMsgCountMap.incrementAndGet(dataKey);
         REPLYMsgRecord.add(msgKey);
-//        if(weight >= groupMaxF+1) {
-//            logger.info("消息确认成功[" + index + "]:" + msg);
-//            replyMsgCount.set(0);
-//            curREQMsg = null; // 当前请求已经完成
-//        }
     }
 
     private void onWeight(bilayerBFTMsg msg) {
@@ -371,23 +380,21 @@ public class bilayerBFTNode {
             // s = H(H(m)|r)
             // 因为dataKey中包含了时间戳, 所以每次运行结果不一样
             byte[] s = Utils.getSHA256(dataKey + msg.getR());
-
-            System.out.println(Utils.bytesToHexString(s));
-
             if(valSize == 1) {
                 for(Integer b: val_r) {
                     // 有时会小于0
                     int tempS = (s[s.length-1] % 2 + 2) % 2;
-                    System.out.println("节点"+index+": 此时的b为" + b + ", s为" + tempS);
                     if(b == tempS) {
                         Boolean decided = decidedMap.get(dataKey);
                         if(decided != null && decided == true) {
                             return;
                         }
                         else {
-                            // TODO 发送WABA_RESULT
-                            // doneMsgRecord
-                            System.out.println("节点"+index+" decide " + b);
+                            bilayerBFTMsg RESULTMsg = new bilayerBFTMsg(msg);
+                            RESULTMsg.setType(MessageEnum.WABA_RESULT);
+                            RESULTMsg.setSenderId(index);
+                            RESULTMsg.setB(b);
+                            publishInsideGroup(RESULTMsg);
                             decidedMap.put(dataKey, true);
                         }
                     } else {
@@ -421,9 +428,44 @@ public class bilayerBFTNode {
         }
     }
 
+    private void onWABAResult(bilayerBFTMsg msg) {
+        int b = msg.getB();
+        if(b == 0) {
+            discardBlock(msg);
+        } else if(b == 1) {
+            executeBlock(msg);
+            if(msg.getPrimeNodeId() == index) {
+                doneTimer.put(msg.getDataKey(), System.currentTimeMillis());
+                logger.info("[节点" + index + "]: 摘要为{" + msg.getDataHash() + "}的区块消息确认成功!");
+                // 当前请求执行完成
+                curREQMsg = null;
+            }
+        }
+    }
+
+    private void onProofHonest(bilayerBFTMsg msg) {
+        if(!REQMsgRecord.contains(msg.getDataKey())) return;
+        bilayerBFTMsg AFFIRM_HONESTMsg = new bilayerBFTMsg(msg);
+        AFFIRM_HONESTMsg.setType(MessageEnum.AFFIRM_HONEST);
+        AFFIRM_HONESTMsg.setSenderId(index);
+        send(msg.getPrimeNodeId(), AFFIRM_HONESTMsg);
+    }
+
+    private void onAffirmHonest(bilayerBFTMsg msg) {
+        String msgKey = msg.getMsgKey();
+        if(AFFIRM_HONESTMsgRecord.contains(msgKey)) return;
+        AFFIRM_HONESTMsgCountMap.incrementAndGet(msg.getDataKey());
+        AFFIRM_HONESTMsgRecord.add(msgKey);
+        // 收集到f+1个就代表该节点是诚实的
+    }
+
     // 执行对应请求
-    private void doSomething(bilayerBFTMsg msg) {
-        logger.info("[节点" + index + "]成功执行请求" + msg);
+    private void executeBlock(bilayerBFTMsg msg) {
+        logger.info("[节点" + index + "]成功执行摘要为{" + msg.getDataHash() + "}的区块请求");
+    }
+
+    private void discardBlock(bilayerBFTMsg msg) {
+        logger.info("[节点" + index + "]丢弃摘要为{" + msg.getDataHash() + "}的区块");
     }
 
     // 请求入列
@@ -449,7 +491,8 @@ public class bilayerBFTNode {
     // 发送当前请求
     private void doSendCurMsg() {
         // 记录通过RBC发送时间, 用于后续判断何时发送WEIGHT和NO_BLOCK消息
-        REQTimer.put(curREQMsg.getDataKey(), System.currentTimeMillis());
+        String dataKey = curREQMsg.getDataKey();
+        REQTimer.put(dataKey, System.currentTimeMillis());
 
         // 达到指定时间后发送WEIGHT消息
         TimerManager.schedule(() -> {
@@ -458,6 +501,16 @@ public class bilayerBFTNode {
             publishToLeaders(WEIGHTMsg);
             return null;
         }, SEND_WEIGHT_TIME);
+
+        TimerManager.schedule(() -> {
+            // 如果超过指定之间还没完成请求
+            if(!doneTimer.containsKey(dataKey)) {
+                bilayerBFTMsg PROOF_HONESTMsg = new bilayerBFTMsg(curREQMsg);
+                PROOF_HONESTMsg.setType(MessageEnum.PROOF_HONEST);
+                publishToAll(PROOF_HONESTMsg);
+            }
+            return null;
+        }, SEND_PROOF_HONEST_TIME);
 
         doRBC();
     }

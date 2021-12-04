@@ -276,7 +276,7 @@ public class PBFTNode {
             PBFTMsg REPLYMsg = new PBFTMsg(msg);
             REPLYMsg.setType(MessageEnum.REPLY);
             REPLYMsg.setSenderId(index);
-            doSomething(REPLYMsg);
+            executeBlock(REPLYMsg);
             // 发送REPLY消息给客户端
             send(REPLYMsg.getPrimeNodeId(), REPLYMsg);
         }
@@ -342,7 +342,7 @@ public class PBFTNode {
     }
 
     // 执行对应请求
-    private void doSomething(PBFTMsg msg) {
+    private void executeBlock(PBFTMsg msg) {
         logger.info("[节点" + index + "]成功执行请求" + msg);
     }
 

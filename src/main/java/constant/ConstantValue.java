@@ -6,7 +6,7 @@ public class ConstantValue {
 
     // =====================================共用的值=====================================
 
-    public static final int NODE_SIZE = 32;
+    public static final int NODE_SIZE = 4;
     public static final int TRANSACTION_NUMBER = 1;
 //    public static final int TRANSACTION_SIZE = 1 * 1024 * 1024 * 8; // 1M
     public static final int TOTAL_BANDWIDTH = 1 * 1024 * 1024 * 8;

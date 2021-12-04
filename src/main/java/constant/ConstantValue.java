@@ -9,7 +9,7 @@ public class ConstantValue {
     public static final int NODE_SIZE = 4;
     public static final int TRANSACTION_NUMBER = 1;
 //    public static final int TRANSACTION_SIZE = 1 * 1024 * 1024 * 8; // 1M
-    public static final int TOTAL_BANDWIDTH = 1 * 1024 * 1024 * 8;
+    public static final int TOTAL_BANDWIDTH = 100 * 1024 * 1024 * 8;
     public static final int BANDWIDTH = TOTAL_BANDWIDTH / NODE_SIZE;
     public static final int MSG_TYPE_ID_SIZE = 4; // 用于标识消息类型, 类型不多于16种, 可以标识完全
     public static final int TIMESTAMP_SIZE = 64; //时间戳为long类型, 64位

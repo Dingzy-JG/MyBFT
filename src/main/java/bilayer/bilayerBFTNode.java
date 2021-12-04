@@ -437,6 +437,11 @@ public class bilayerBFTNode {
             if(msg.getPrimeNodeId() == index) {
                 doneTimer.put(msg.getDataKey(), System.currentTimeMillis());
                 logger.info("[节点" + index + "]: 摘要为{" + msg.getDataHash() + "}的区块消息确认成功!");
+
+                // =====================================用于计时=====================================
+                bilayerBFTMain.countDownLatch.countDown();
+                // =====================================用于计时=====================================
+
                 // 当前请求执行完成
                 curREQMsg = null;
             }

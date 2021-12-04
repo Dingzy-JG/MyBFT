@@ -34,13 +34,27 @@ public class bilayerBFTMain {
             nodes[i] = new bilayerBFTNode(index, size, groupSizeArr[getGroupIndex(index)], isLeader(index)).start();
         }
 
-        // 用来测试
-        nodes[1].req("test"+1);
+        // 模拟client发送请求
+        for(int i = 0; i < transactionNum; i++) {
+            int node = r.nextInt(size);
 
-        nodes[2].req("test"+2);
+            // =====================================用于计时=====================================
+            if(startTime == 0) startTime = System.currentTimeMillis();
+            // =====================================用于计时=====================================
 
-        // 测试没收到对应区块
-//        nodes[1].publishToLeaders(new bilayerBFTMsg(MessageEnum.WEIGHT, 1));
+            nodes[node].req("test"+i);
+        }
+
+        // =====================================用于计时=====================================
+        countDownLatch.await();
+        endTime = System.currentTimeMillis();
+        Thread.sleep(1000);
+        for(int i = 0; i < size; i++) {
+            communicationCost += nodes[i].totalSendMsgLen;
+        }
+        System.out.println("通信开销为: " + (communicationCost/8/1024) + "KB");
+        System.out.println("耗时: " + (endTime-startTime) + "ms");
+        // =====================================用于计时=====================================
 
     }
 

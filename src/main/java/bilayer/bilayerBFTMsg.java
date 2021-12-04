@@ -12,6 +12,7 @@ public class bilayerBFTMsg {
     private int primeNodeId;                   // 发起请求的节点id
     private String dataHash;                   // 区块的Hash值, 用于标识不同区块
     private Integer b;                         // 输入ABA的值(0, 1, null)
+    private Integer r;                         // WABA中的轮数r
     private Long weight;                       // 权重值
     private long timestamp;                    // 时间戳
     private BigInteger signature;              // 签名
@@ -36,6 +37,7 @@ public class bilayerBFTMsg {
         this.primeNodeId = msg.primeNodeId;
         this.dataHash = msg.dataHash;
         this.b = msg.b;
+        this.r = msg.r;
         this.weight = msg.weight;
         this.timestamp = msg.timestamp;
         this.signature = msg.signature;
@@ -75,7 +77,11 @@ public class bilayerBFTMsg {
                 len = MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + SIGNATURE_SIZE + SIGNATURE_SIZE;
                 break;
             case WABA:
+            case AUX:
                 len = MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + WEIGHT_SIZE + RESULT_SIZE + SIGNATURE_SIZE;
+                break;
+            case WABA_RESULT:
+                len = MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + RESULT_SIZE + SIGNATURE_SIZE;
                 break;
             default:
                 break;
@@ -131,6 +137,14 @@ public class bilayerBFTMsg {
         this.b = b;
     }
 
+    public Integer getR() {
+        return r;
+    }
+
+    public void setR(Integer r) {
+        this.r = r;
+    }
+
     public long getTimestamp() {
         return timestamp;
     }
@@ -173,7 +187,8 @@ public class bilayerBFTMsg {
                   ", primeNodeId=" + primeNodeId +
                   ", senderId=" + senderId +
                   ", dataHash=" + dataHash;
-        if(b != null) result += (", b=" + b);
+        if(r != null) result += ", r=" + r;
+        if(b != null) result += ", b=" + b;
         if(weight != null) result += ", weight=" + weight;
         if(senderPK != null) result += ", senderPK=" + senderPK;
         if(signature != null) result += ", signature=" + signature;

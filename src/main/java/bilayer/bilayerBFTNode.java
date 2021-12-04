@@ -13,6 +13,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import util.TimerManager;
+import util.Utils;
 
 import static constant.ConstantValue.*;
 
@@ -57,21 +58,26 @@ public class bilayerBFTNode {
     // 记录已经收到的NO_BLOCK消息的数量 <DataKey, count>
     private AtomicLongMap<String> NO_BLOCKMsgCountMap = AtomicLongMap.create();
 
-    // 记录收到的WABA消息 (MsgKey)
+    // 记录收到的WABA消息, 因为MsgKey分辨不出轮数和b, 所以加上_r_b (MsgKey_r_b)
     private Set<String> WABAMsgRecord = Sets.newConcurrentHashSet();
-    // 记录已经发送过的WABA消息 (DataKey)
+    // 记录已经发送过的WABA消息 (DataKey_r_b)
     private Set<String> haveSentWABA_B_Msg = Sets.newConcurrentHashSet();
-    // 权重累加值 <DataKey, weightSum>
-    private AtomicLongMap<String> weightSumMap = AtomicLongMap.create();
+    // 权重累加值 <DataKey_r_b, weightSum>
+    private AtomicLongMap<String> WABAWeightSumMap = AtomicLongMap.create();
 
-    // 存储对应的est <DataKey, b>
-    private Map<String, Integer> estMap = Maps.newConcurrentMap();
-    // 存储WABA的轮数 <DataKey, r>
-    private Map<String, Integer> rMap = Maps.newConcurrentMap();
+    // 记录收到的AUX消息, 因为MsgKey分辨不出轮数和u, 所以加上_r_u (MsgKey_r_u)
+    private Set<String> AUXMsgRecord = Sets.newConcurrentHashSet();
+    // 记录已经发送过的AUX消息 (DataKey_r_u)
+    private Set<String> haveSentAUX_U_Msg = Sets.newConcurrentHashSet();
+    // AUX的权重累加值 <DataKey_r_u, weightSum>
+    private AtomicLongMap<String> AUXWeightSumMap = AtomicLongMap.create();
+
     // 存储WABA是否已经decide <DataKey, decided>
     private Map<String, Boolean> decidedMap = Maps.newConcurrentMap();
-    // 存储WABA的value_r集合 <DataKey, value_r>
+    // 存储WABA的value_r集合 <DataKey_r, value_r>
     private Map<String, Set<Integer>> valueMap = Maps.newConcurrentMap();
+    // 存储WABA的val_r集合 <DataKey_r, val_r>
+    private Map<String, Set<Integer>> valMap = Maps.newConcurrentMap();
 
     // 已经成功处理过的请求 <DataKey, 完成时间戳>
     private Map<String, Long> doneMsgRecord = Maps.newConcurrentMap();
@@ -146,6 +152,9 @@ public class bilayerBFTNode {
                     break;
                 case WABA:
                     onWABA(msg);
+                    break;
+                case AUX:
+                    onAUX(msg);
                     break;
                 default:
                     break;
@@ -237,12 +246,14 @@ public class bilayerBFTNode {
             bilayerBFTMsg WABA_1_Msg = new bilayerBFTMsg(msg);
             WABA_1_Msg.setType(MessageEnum.WABA);
             WABA_1_Msg.setSenderId(index);
+            WABA_1_Msg.setR(0);
             WABA_1_Msg.setB(1);
             WABA_1_Msg.setWeight(weight_1);
             // 因为可能存在加起来权重超过了f+1直接发过了, 不判断的话可能存在重复发送
-            if(!haveSentWABA_B_Msg.contains(dataKey + "1")) {
+            // "_0_1": 前一个代表r, 后一个代表b
+            if(!haveSentWABA_B_Msg.contains(dataKey + "_0_1")) {
                 publishToLeaders(WABA_1_Msg);
-                haveSentWABA_B_Msg.add(dataKey + "1");
+                haveSentWABA_B_Msg.add(dataKey + "_0_1");
             }
         } else {
             // 否则就向组员广播NO_REPLY消息, 收集组员投票为0的签名碎片
@@ -257,11 +268,12 @@ public class bilayerBFTNode {
                 long weight_0 = NO_BLOCKMsgCountMap.get(dataKey);
                 WABA_0_Msg.setType(MessageEnum.WABA);
                 WABA_0_Msg.setSenderId(index);
+                WABA_0_Msg.setR(0);
                 WABA_0_Msg.setB(0);
                 WABA_0_Msg.setWeight(weight_0);
-                if(!haveSentWABA_B_Msg.contains(dataKey + "0")) {
+                if(!haveSentWABA_B_Msg.contains(dataKey + "_0_0")) {
                     publishToLeaders(WABA_0_Msg);
-                    haveSentWABA_B_Msg.add(dataKey + "0");
+                    haveSentWABA_B_Msg.add(dataKey + "_0_0");
                 }
                 return null;
             }, GATHER_NO_BLOCK_TIME);
@@ -286,29 +298,127 @@ public class bilayerBFTNode {
     }
 
     private void onWABA(bilayerBFTMsg msg) {
-        String msgKey = msg.getMsgKey();
-        String dataKey_b = msg.getDataKey() + msg.getB();
+        String msgKey_r_b = msg.getMsgKey() + msg.getR() + msg.getB();
+        String dataKey = msg.getDataKey();
+        String dataKey_r = dataKey + "_" + msg.getR();
+        String dataKey_r_b = dataKey_r + "_" + msg.getB();
+        if(WABAMsgRecord.contains(msgKey_r_b)) return;
         long weight = msg.getWeight();
-        if(WABAMsgRecord.contains(msgKey)) return;
-        long weightSum = weightSumMap.addAndGet(dataKey_b, weight);
-        WABAMsgRecord.add(msgKey);
+        long WABAWeightSum = WABAWeightSumMap.addAndGet(dataKey_r_b, weight);
+        WABAMsgRecord.add(msgKey_r_b);
         // 权重之和大于等于f+1, 且未发送对应的WABA
-        if(weightSum >= maxF + 1 && !haveSentWABA_B_Msg.contains(dataKey_b)) {
+        if(WABAWeightSum >= maxF + 1 && !haveSentWABA_B_Msg.contains(dataKey_r_b)) {
             bilayerBFTMsg WABA_B_Msg = new bilayerBFTMsg(msg);
-            // 类型已经是WABA, b也和收到的msg中的一致
+            // 类型已经是WABA, r和b也和收到的msg中的一致
             WABA_B_Msg.setSenderId(index);
-            // 直接代表全组发
-            WABA_B_Msg.setWeight(Long.valueOf(groupSize));
+            WABA_B_Msg.setWeight(REPLYMsgCountMap.get(dataKey));
             publishToLeaders(WABA_B_Msg);
-            haveSentWABA_B_Msg.add(dataKey_b);
+            haveSentWABA_B_Msg.add(dataKey_r_b);
         }
         // 权重之和大于等于2f+1
-        // TODO 只在第一次超过2f+1时才执行
-        if(weightSum >= 2*maxF + 1) {
-            // TODO 执行操作
-
+        if(WABAWeightSum >= 2*maxF + 1) {
+            if(!valueMap.containsKey(dataKey_r)) {
+                Set<Integer> valueSet = new HashSet();
+                valueSet.add(msg.getB());
+                valueMap.put(dataKey_r, valueSet);
+            } else {
+                valueMap.get(dataKey_r).add(msg.getB());
+            }
         }
+        // 当value_r集合不为空时
+        Set<Integer> value_r = valueMap.get(dataKey_r);
+        if(value_r != null && value_r.size() != 0) {
+            for(Integer u: value_r) {
+                String dataKey_r_u = dataKey_r + u;
+                // 防止重复发送
+                if(!haveSentAUX_U_Msg.contains(dataKey_r_u)) {
+                    bilayerBFTMsg AUXMsg = new bilayerBFTMsg(msg);
+                    // r与收到的msg一致
+                    AUXMsg.setType(MessageEnum.AUX);
+                    AUXMsg.setSenderId(index);
+                    AUXMsg.setB(u);
+                    AUXMsg.setWeight(REPLYMsgCountMap.get(dataKey));
+                    publishToLeaders(AUXMsg);
+                    haveSentAUX_U_Msg.add(dataKey_r_u);
+                }
+            }
+        }
+    }
 
+    private void onAUX(bilayerBFTMsg msg) {
+        String msgKey_r_u = msg.getMsgKey() + msg.getR() + msg.getB();
+        String dataKey = msg.getDataKey();
+        String dataKey_r = dataKey + "_" + msg.getR();
+        String dataKey_r_u = dataKey_r + "_" + msg.getB();
+        if(AUXMsgRecord.contains(msgKey_r_u)) return;
+        long weight = msg.getWeight();
+        long AUXWeightSum = AUXWeightSumMap.addAndGet(dataKey_r_u, weight);
+        AUXMsgRecord.add(msgKey_r_u);
+        // 权重之和大于等于n-f
+        if(AUXWeightSum >= n - maxF) {
+            if(!valMap.containsKey(dataKey_r)) {
+                Set<Integer> valSet = new HashSet();
+                valSet.add(msg.getB());
+                valMap.put(dataKey_r, valSet);
+            } else {
+                valMap.get(dataKey_r).add(msg.getB());
+            }
+        }
+        // 当集合中只有一个元素b时
+        Set<Integer> val_r = valMap.get(dataKey_r);
+        if(val_r != null) {
+            int valSize = val_r.size();
+            // s = H(H(m)|r)
+            // 因为dataKey中包含了时间戳, 所以每次运行结果不一样
+            byte[] s = Utils.getSHA256(dataKey + msg.getR());
+
+            System.out.println(Utils.bytesToHexString(s));
+
+            if(valSize == 1) {
+                for(Integer b: val_r) {
+                    // 有时会小于0
+                    int tempS = (s[s.length-1] % 2 + 2) % 2;
+                    System.out.println("节点"+index+": 此时的b为" + b + ", s为" + tempS);
+                    if(b == tempS) {
+                        Boolean decided = decidedMap.get(dataKey);
+                        if(decided != null && decided == true) {
+                            return;
+                        }
+                        else {
+                            // TODO 发送WABA_RESULT
+                            // doneMsgRecord
+                            System.out.println("节点"+index+" decide " + b);
+                            decidedMap.put(dataKey, true);
+                        }
+                    } else {
+                        int r = msg.getR() + 1;
+                        if(!haveSentWABA_B_Msg.contains(dataKey + "_" + r + "_" + b)) {
+                            bilayerBFTMsg WABAMsg = new bilayerBFTMsg(msg);
+                            WABAMsg.setType(MessageEnum.WABA);
+                            WABAMsg.setSenderId(index);
+                            WABAMsg.setR(r);
+                            WABAMsg.setB(b);
+                            WABAMsg.setWeight(REPLYMsgCountMap.get(dataKey));
+                            publishToLeaders(WABAMsg);
+                            haveSentWABA_B_Msg.add(dataKey + "_" + r + "_" + b);
+                        }
+                    }
+                }
+            } else if(valSize == 2) {
+                int b = s[s.length-1] % 2;
+                int r = msg.getR() + 1;
+                if(!haveSentWABA_B_Msg.contains(dataKey + "_" + r + "_" + b)) {
+                    bilayerBFTMsg WABAMsg = new bilayerBFTMsg(msg);
+                    WABAMsg.setType(MessageEnum.WABA);
+                    WABAMsg.setSenderId(index);
+                    WABAMsg.setR(r);
+                    WABAMsg.setB(b);
+                    WABAMsg.setWeight(REPLYMsgCountMap.get(dataKey));
+                    publishToLeaders(WABAMsg);
+                    haveSentWABA_B_Msg.add(dataKey + "_" + r + "_" + b);
+                }
+            }
+        }
     }
 
     // 执行对应请求

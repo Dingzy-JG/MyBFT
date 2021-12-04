@@ -1,6 +1,5 @@
 package bilayer;
 
-import enums.MessageEnum;
 import org.apache.commons.lang3.RandomUtils;
 
 import static constant.ConstantValue.*;

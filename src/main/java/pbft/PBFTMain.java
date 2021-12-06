@@ -1,5 +1,7 @@
 package pbft;
 
+import java.io.FileOutputStream;
+import java.text.SimpleDateFormat;
 import org.apache.commons.lang3.RandomUtils;
 import java.util.Random;
 import java.util.concurrent.CountDownLatch;
@@ -44,12 +46,19 @@ public class PBFTMain {
         // =====================================用于计时=====================================
         countDownLatch.await();
         endTime = System.currentTimeMillis();
-        Thread.sleep(1000);
         for(int i = 0; i < size; i++) {
             communicationCost += nodes[i].totalSendMsgLen;
         }
-        System.out.println("通信开销为: " + (communicationCost/8/1024) + "KB");
-        System.out.println("耗时: " + (endTime-startTime) + "ms");
+
+        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        String time = formatter.format(startTime);
+
+        String result = "PBFT:\n";
+        result += time + '\n';
+        result += "节点数量为:" + size + '\n';
+        result += "通信开销为: " + (communicationCost/8/1024) + "KB\n";
+        result += "耗时: " + (endTime-startTime) + "ms";
+        WriteResultToFile("result.txt", result);
         // =====================================用于计时=====================================
 
     }
@@ -64,6 +73,17 @@ public class PBFTMain {
                     netDelay[i][j] = toItself;
                 }
             }
+        }
+    }
+
+    // 把结果输出到文件中
+    private static void WriteResultToFile(String filePath, String result) {
+        try {
+            FileOutputStream fos = new FileOutputStream(filePath);
+            fos.write(result.getBytes());
+            fos.close();
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }

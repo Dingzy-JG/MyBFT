@@ -9,7 +9,7 @@ public class ConstantValue {
     public static final int NODE_SIZE = 4;
     public static final int TRANSACTION_NUMBER = 1;
 //    public static final int TRANSACTION_SIZE = 1 * 1024 * 1024 * 8; // 1M
-    public static final int TOTAL_BANDWIDTH = 100 * 1024 * 1024 * 8;
+    public static final int TOTAL_BANDWIDTH = 100 * 1024 * 8;
     public static final int BANDWIDTH = TOTAL_BANDWIDTH / NODE_SIZE;
     public static final int MSG_TYPE_ID_SIZE = 4; // 用于标识消息类型, 类型不多于16种, 可以标识完全
     public static final int TIMESTAMP_SIZE = 64; //时间戳为long类型, 64位
@@ -57,6 +57,6 @@ public class ConstantValue {
         (MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + SIGNATURE_SIZE) * 1000 * bilayerBFTMain.groupSizeArr[0] / BANDWIDTH + GROUP_INSIDE_SLOW_NET_DELAY +
         // 2. 组内节点给leader发no_block消息的时长
         (MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + RESULT_SIZE + SIGNATURE_SIZE + SIGNATURE_SIZE) * 1000 / BANDWIDTH + GROUP_INSIDE_SLOW_NET_DELAY;
-    public static final long SEND_PROOF_HONEST_TIME = 60000; // (1min)根据实际情况设置
+    public static final long SEND_PROOF_HONEST_TIME = 600000; // (10min)根据实际情况设置
 
 }

@@ -12,6 +12,7 @@ import enums.MessageEnum;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import util.SignatureUtils;
 import util.TimerManager;
 import util.Utils;
 
@@ -19,7 +20,7 @@ import static constant.ConstantValue.*;
 
 public class bilayerBFTNode {
 
-    Logger logger = LoggerFactory.getLogger(getClass());
+    Logger logger = LoggerFactory.getLogger(bilayerBFTNode.class);
 
     private int n;                                                  // 总节点数
     private int maxF;                                               // 最大容错数, 对应论文中的f
@@ -183,6 +184,7 @@ public class bilayerBFTNode {
             logger.info("[节点" + index + "]收到异常消息" + msg);
             return;
         }
+        SignatureUtils.verify();
         if(REQMsgRecord.contains(msg.getDataKey())) return;
         REQMsgRecord.add(msg.getDataKey());
         // 根据第一层共识算法, 直接广播prepare消息
@@ -190,6 +192,7 @@ public class bilayerBFTNode {
         PAMsg.setType(MessageEnum.PREPARE);
         PAMsg.setSenderId(index);
         // 组内广播PA消息
+        SignatureUtils.sign();
         publishInsideGroup(PAMsg);
     }
 
@@ -198,6 +201,7 @@ public class bilayerBFTNode {
             logger.info("[节点" + index + "]收到异常消息" + msg);
             return;
         }
+        SignatureUtils.verify();
         String msgKey = msg.getMsgKey();
         // 说明已经投过票, 不能重复投
         if(PAMsgRecord.contains(msgKey)) return;
@@ -210,6 +214,7 @@ public class bilayerBFTNode {
             bilayerBFTMsg CMMsg = new bilayerBFTMsg(msg);
             CMMsg.setType(MessageEnum.COMMIT);
             CMMsg.setSenderId(index);
+            SignatureUtils.sign();
             publishInsideGroup(CMMsg);
         }
     }
@@ -219,6 +224,7 @@ public class bilayerBFTNode {
             logger.info("[节点" + index + "]收到异常消息" + msg);
             return;
         }
+        SignatureUtils.verify();
         String msgKey = msg.getMsgKey();
         // 已经投过票, 不能重复投
         if(CMMsgRecord.contains(msgKey)) return;
@@ -234,11 +240,13 @@ public class bilayerBFTNode {
             REPLYMsg.setType(MessageEnum.REPLY);
             REPLYMsg.setSenderId(index);
             // 发送REPLY消息给leader
+            SignatureUtils.sign();
             send(getLeaderIndex(index), REPLYMsg);
         }
     }
 
     private void onReply(bilayerBFTMsg msg) {
+        SignatureUtils.verify();
         String msgKey = msg.getMsgKey();
         String dataKey = msg.getDataKey();
         if(!REQMsgRecord.contains(dataKey)) return;
@@ -248,6 +256,7 @@ public class bilayerBFTNode {
     }
 
     private void onWeight(bilayerBFTMsg msg) {
+        SignatureUtils.verify();
         String dataKey = msg.getDataKey();
         long weight_1 = REPLYMsgCountMap.get(dataKey);
         if(weight_1 != 0) {
@@ -261,6 +270,7 @@ public class bilayerBFTNode {
             // 因为可能存在加起来权重超过了f+1直接发过了, 不判断的话可能存在重复发送
             // "_0_1": 前一个代表r, 后一个代表b
             if(!haveSentWABA_B_Msg.contains(dataKey + "_0_1")) {
+                SignatureUtils.sign();
                 publishToLeaders(WABA_1_Msg);
                 haveSentWABA_B_Msg.add(dataKey + "_0_1");
             }
@@ -269,6 +279,7 @@ public class bilayerBFTNode {
             bilayerBFTMsg NO_REPLYMsg = new bilayerBFTMsg(msg);
             NO_REPLYMsg.setType(MessageEnum.NO_REPLY);
             NO_REPLYMsg.setSenderId(index);
+            SignatureUtils.sign();
             publishInsideGroup(NO_REPLYMsg);
 
             // 达到指定的收集NO_BLOCK时间后, 发送内容为0的WABA消息
@@ -281,6 +292,7 @@ public class bilayerBFTNode {
                 WABA_0_Msg.setB(0);
                 WABA_0_Msg.setWeight(weight_0);
                 if(!haveSentWABA_B_Msg.contains(dataKey + "_0_0")) {
+                    SignatureUtils.sign();
                     publishToLeaders(WABA_0_Msg);
                     haveSentWABA_B_Msg.add(dataKey + "_0_0");
                 }
@@ -291,17 +303,20 @@ public class bilayerBFTNode {
 
     private void onNoReply(bilayerBFTMsg msg) {
         if(REQMsgRecord.contains(msg.getDataKey())) return;
+        SignatureUtils.verify();
         // 没有收到对应的区块, 则向其leader发送NO_BLOCK消息
         bilayerBFTMsg NO_BLOCKMsg = new bilayerBFTMsg(msg);
         NO_BLOCKMsg.setType(MessageEnum.NO_BLOCK);
         NO_BLOCKMsg.setSenderId(index);
         NO_BLOCKMsg.setB(0);
+        SignatureUtils.sign();
         send(getLeaderIndex(index), NO_BLOCKMsg);
     }
 
     private void onNoBlock(bilayerBFTMsg msg) {
         String msgKey = msg.getMsgKey();
         if(NO_BLOCKMsgRecord.contains(msgKey)) return;
+        SignatureUtils.verify();
         NO_BLOCKMsgCountMap.incrementAndGet(msg.getDataKey());
         NO_BLOCKMsgRecord.add(msgKey);
     }
@@ -312,6 +327,7 @@ public class bilayerBFTNode {
         String dataKey_r = dataKey + "_" + msg.getR();
         String dataKey_r_b = dataKey_r + "_" + msg.getB();
         if(WABAMsgRecord.contains(msgKey_r_b)) return;
+        SignatureUtils.verify();
         long weight = msg.getWeight();
         long WABAWeightSum = WABAWeightSumMap.addAndGet(dataKey_r_b, weight);
         WABAMsgRecord.add(msgKey_r_b);
@@ -321,6 +337,7 @@ public class bilayerBFTNode {
             // 类型已经是WABA, r和b也和收到的msg中的一致
             WABA_B_Msg.setSenderId(index);
             WABA_B_Msg.setWeight(REPLYMsgCountMap.get(dataKey));
+            SignatureUtils.sign();
             publishToLeaders(WABA_B_Msg);
             haveSentWABA_B_Msg.add(dataKey_r_b);
         }
@@ -347,6 +364,7 @@ public class bilayerBFTNode {
                     AUXMsg.setSenderId(index);
                     AUXMsg.setB(u);
                     AUXMsg.setWeight(REPLYMsgCountMap.get(dataKey));
+                    SignatureUtils.sign();
                     publishToLeaders(AUXMsg);
                     haveSentAUX_U_Msg.add(dataKey_r_u);
                 }
@@ -360,6 +378,7 @@ public class bilayerBFTNode {
         String dataKey_r = dataKey + "_" + msg.getR();
         String dataKey_r_u = dataKey_r + "_" + msg.getB();
         if(AUXMsgRecord.contains(msgKey_r_u)) return;
+        SignatureUtils.verify();
         long weight = msg.getWeight();
         long AUXWeightSum = AUXWeightSumMap.addAndGet(dataKey_r_u, weight);
         AUXMsgRecord.add(msgKey_r_u);
@@ -394,6 +413,7 @@ public class bilayerBFTNode {
                             RESULTMsg.setType(MessageEnum.WABA_RESULT);
                             RESULTMsg.setSenderId(index);
                             RESULTMsg.setB(b);
+                            SignatureUtils.sign();
                             publishInsideGroup(RESULTMsg);
                             decidedMap.put(dataKey, true);
                         }
@@ -406,6 +426,7 @@ public class bilayerBFTNode {
                             WABAMsg.setR(r);
                             WABAMsg.setB(b);
                             WABAMsg.setWeight(REPLYMsgCountMap.get(dataKey));
+                            SignatureUtils.sign();
                             publishToLeaders(WABAMsg);
                             haveSentWABA_B_Msg.add(dataKey + "_" + r + "_" + b);
                         }
@@ -421,6 +442,7 @@ public class bilayerBFTNode {
                     WABAMsg.setR(r);
                     WABAMsg.setB(b);
                     WABAMsg.setWeight(REPLYMsgCountMap.get(dataKey));
+                    SignatureUtils.sign();
                     publishToLeaders(WABAMsg);
                     haveSentWABA_B_Msg.add(dataKey + "_" + r + "_" + b);
                 }
@@ -429,6 +451,7 @@ public class bilayerBFTNode {
     }
 
     private void onWABAResult(bilayerBFTMsg msg) {
+        SignatureUtils.verify();
         int b = msg.getB();
         if(b == 0) {
             discardBlock(msg);
@@ -450,15 +473,18 @@ public class bilayerBFTNode {
 
     private void onProofHonest(bilayerBFTMsg msg) {
         if(!REQMsgRecord.contains(msg.getDataKey())) return;
+        SignatureUtils.verify();
         bilayerBFTMsg AFFIRM_HONESTMsg = new bilayerBFTMsg(msg);
         AFFIRM_HONESTMsg.setType(MessageEnum.AFFIRM_HONEST);
         AFFIRM_HONESTMsg.setSenderId(index);
+        SignatureUtils.sign();
         send(msg.getPrimeNodeId(), AFFIRM_HONESTMsg);
     }
 
     private void onAffirmHonest(bilayerBFTMsg msg) {
         String msgKey = msg.getMsgKey();
         if(AFFIRM_HONESTMsgRecord.contains(msgKey)) return;
+        SignatureUtils.verify();
         AFFIRM_HONESTMsgCountMap.incrementAndGet(msg.getDataKey());
         AFFIRM_HONESTMsgRecord.add(msgKey);
         // 收集到f+1个就代表该节点是诚实的
@@ -477,6 +503,7 @@ public class bilayerBFTNode {
     public void req(String data) {
         bilayerBFTMsg REQMsg = new bilayerBFTMsg(MessageEnum.REQUEST, index);
         REQMsg.setDataHash(data);
+        SignatureUtils.sign();
         try {
             reqQueue.put(REQMsg);
         } catch (InterruptedException e) {
@@ -503,6 +530,7 @@ public class bilayerBFTNode {
         TimerManager.schedule(() -> {
             bilayerBFTMsg WEIGHTMsg = new bilayerBFTMsg(curREQMsg);
             WEIGHTMsg.setType(MessageEnum.WEIGHT);
+            SignatureUtils.sign();
             publishToLeaders(WEIGHTMsg);
             return null;
         }, SEND_WEIGHT_TIME);
@@ -512,6 +540,7 @@ public class bilayerBFTNode {
             if(!doneTimer.containsKey(dataKey)) {
                 bilayerBFTMsg PROOF_HONESTMsg = new bilayerBFTMsg(curREQMsg);
                 PROOF_HONESTMsg.setType(MessageEnum.PROOF_HONEST);
+                SignatureUtils.sign();
                 publishToAll(PROOF_HONESTMsg);
             }
             return null;
@@ -526,9 +555,7 @@ public class bilayerBFTNode {
         publishToAll(curREQMsg);
     }
 
-    // 检测WEIGHT和PROOF_HONEST的发送时间
     private void checkTimer() {
-        // TODO 待补充PROOF_HONEST消息
     }
 
     // 向所有节点广播 (组内组外)

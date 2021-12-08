@@ -60,7 +60,7 @@ public class bilayerBFTMain {
         String result = "bilayerBFT\n";
         result += "开始时间:" + time + '\n';
         result += "总带宽:" + (TOTAL_BANDWIDTH/8/1024) +"KB/s\n";
-        result += "节点数量:" + size + '\n';
+        result += "节点数量:" + NODE_SIZE + '\n';
         result += "通信开销: " + (communicationCost/8/1024) + "KB\n";
         result += "耗时: " + (endTime-startTime) + "ms";
         WriteResultToFile("result.txt", result);

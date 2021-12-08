@@ -9,6 +9,7 @@ import enums.MessageEnum;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import util.SignatureUtils;
 import util.TimerManager;
 
 import java.util.*;
@@ -20,7 +21,7 @@ import static constant.ConstantValue.*;
 
 public class PBFTNode {
 
-    Logger logger = LoggerFactory.getLogger(getClass());
+    Logger logger = LoggerFactory.getLogger(PBFTNode.class);
 
     private int n;                                                  // 总节点数
     private int maxF;                                               // 最大容错数, 对应论文中的f
@@ -155,6 +156,7 @@ public class PBFTNode {
             logger.info("[节点" + index + "]收到异常消息" + msg);
             return;
         }
+        SignatureUtils.verify();
         PBFTMsg newMsg = new PBFTMsg(msg);
         newMsg.setSenderId(index);
         // 视图号已过期
@@ -173,12 +175,14 @@ public class PBFTNode {
             // 主节点生成序列号
             int seqNo = genSeqNo.incrementAndGet();
             newMsg.setSeqNo(seqNo);
+            SignatureUtils.sign();
             publish(newMsg);
         }else if(msg.getSenderId() != index) { // 忽略自己发的请求
             // 非主节点收到, 说明主节点可能宕机
             if(doneMsgRecord.containsKey(msg.getDataKey())) {
                 // 已经处理过, 直接回复
                 newMsg.setType(MessageEnum.REPLY);
+                SignatureUtils.sign();
                 send(msg.getSenderId(), newMsg);
             }else{
                 // 认为客户端进行了VC投票
@@ -186,6 +190,7 @@ public class PBFTNode {
                 VCMsgCountMap.incrementAndGet(msg.getViewNo()+1);
                 // 未处理, 说明可能主节点宕机, 转发给主节点试试
                 logger.info("[节点" + index + "]转发给主节点:"+ msg);
+                SignatureUtils.sign();
                 send(getPrimeIndex(view), newMsg);
                 REQMsgTimeout.put(msg.getDataHash(), System.currentTimeMillis());
             }
@@ -197,6 +202,7 @@ public class PBFTNode {
             logger.info("[节点" + index + "]收到异常消息" + msg);
             return;
         }
+        SignatureUtils.verify();
         String msgKey = msg.getDataKey();
         if(PPMsgRecord.contains(msgKey)) {
             // 说明已经发起过, 不能重复发起
@@ -212,6 +218,7 @@ public class PBFTNode {
         PBFTMsg PAMsg = new PBFTMsg(msg);
         PAMsg.setType(MessageEnum.PREPARE);
         PAMsg.setSenderId(index);
+        SignatureUtils.sign();
         publish(PAMsg);
     }
 
@@ -220,6 +227,7 @@ public class PBFTNode {
             logger.info("[节点" + index + "]收到异常消息" + msg);
             return;
         }
+        SignatureUtils.verify();
         String msgKey = msg.getMsgKey();
         if(PAMsgRecord.contains(msgKey)) {
             // 说明已经投过票, 不能重复投
@@ -241,6 +249,7 @@ public class PBFTNode {
             CMMsg.setType(MessageEnum.COMMIT);
             CMMsg.setSenderId(index);
             doneMsgRecord.put(CMMsg.getDataKey(), CMMsg);
+            SignatureUtils.sign();
             publish(CMMsg);
         }
         // 后续的票数肯定凑不满, 超时自动清除
@@ -251,6 +260,7 @@ public class PBFTNode {
             logger.info("[节点" + index + "]收到异常消息" + msg);
             return;
         }
+        SignatureUtils.verify();
         String msgKey = msg.getMsgKey();
         if(CMMsgRecord.contains(msgKey)) {
             // 说明已经投过票, 不能重复投
@@ -278,12 +288,14 @@ public class PBFTNode {
             REPLYMsg.setSenderId(index);
             executeBlock(REPLYMsg);
             // 发送REPLY消息给客户端
+            SignatureUtils.sign();
             send(REPLYMsg.getPrimeNodeId(), REPLYMsg);
         }
     }
 
     private void onReply(PBFTMsg msg) {
         if(curREQMsg == null || !curREQMsg.getDataHash().equals(msg.getDataHash())) return;
+        SignatureUtils.verify();
         long count = replyMsgCount.incrementAndGet();
         if(count >= maxF+1) {
             logger.info("消息确认成功[" + index + "]:" + msg);
@@ -305,6 +317,7 @@ public class PBFTNode {
             sed.setSenderId(index);
             sed.setViewNo(view);
             sed.setDataHash("initView");
+            SignatureUtils.sign();
             send(msg.getSenderId(), sed);
         }else{
             // 响应
@@ -321,6 +334,7 @@ public class PBFTNode {
 
     private void onChangeView(PBFTMsg msg) {
         // 收集视图变更
+        SignatureUtils.verify();
         String VCMsgKey = msg.getSenderId()+"@"+msg.getViewNo();
         if(VCMsgRecord.contains(VCMsgKey)) {
             return;
@@ -335,6 +349,7 @@ public class PBFTNode {
             // 可以继续发请求
             if(curREQMsg != null) {
                 curREQMsg.setViewNo(view);
+                SignatureUtils.sign();
                 logger.info("[节点" + index + "]请求重传:" + curREQMsg);
                 doSendCurMsg();
             }
@@ -350,6 +365,7 @@ public class PBFTNode {
     public void req(String data) {
         PBFTMsg REQMsg = new PBFTMsg(MessageEnum.REQUEST, index);
         REQMsg.setDataHash(data);
+        SignatureUtils.sign();
         try {
             reqQueue.put(REQMsg);
         } catch (InterruptedException e) {

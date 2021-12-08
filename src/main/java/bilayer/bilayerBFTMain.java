@@ -57,10 +57,11 @@ public class bilayerBFTMain {
         SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
         String time = formatter.format(startTime);
 
-        String result = "bilayerBFT:\n";
-        result += time + '\n';
-        result += "节点数量为:" + size + '\n';
-        result += "通信开销为: " + (communicationCost/8/1024) + "KB \n";
+        String result = "bilayerBFT\n";
+        result += "开始时间:" + time + '\n';
+        result += "总带宽:" + (TOTAL_BANDWIDTH/8/1024) +"KB/s\n";
+        result += "节点数量:" + size + '\n';
+        result += "通信开销: " + (communicationCost/8/1024) + "KB\n";
         result += "耗时: " + (endTime-startTime) + "ms";
         WriteResultToFile("result.txt", result);
         // =====================================用于计时=====================================

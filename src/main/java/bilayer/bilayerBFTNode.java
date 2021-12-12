@@ -270,7 +270,7 @@ public class bilayerBFTNode {
             // 因为可能存在加起来权重超过了f+1直接发过了, 不判断的话可能存在重复发送
             // "_0_1": 前一个代表r, 后一个代表b
             if(!haveSentWABA_B_Msg.contains(dataKey + "_0_1")) {
-                SignatureUtils.sign();
+                SignatureUtils.aggregate();
                 publishToLeaders(WABA_1_Msg);
                 haveSentWABA_B_Msg.add(dataKey + "_0_1");
             }
@@ -292,7 +292,7 @@ public class bilayerBFTNode {
                 WABA_0_Msg.setB(0);
                 WABA_0_Msg.setWeight(weight_0);
                 if(!haveSentWABA_B_Msg.contains(dataKey + "_0_0")) {
-                    SignatureUtils.sign();
+                    SignatureUtils.aggregate();
                     publishToLeaders(WABA_0_Msg);
                     haveSentWABA_B_Msg.add(dataKey + "_0_0");
                 }
@@ -337,7 +337,7 @@ public class bilayerBFTNode {
             // 类型已经是WABA, r和b也和收到的msg中的一致
             WABA_B_Msg.setSenderId(index);
             WABA_B_Msg.setWeight(REPLYMsgCountMap.get(dataKey));
-            SignatureUtils.sign();
+            SignatureUtils.aggregate();
             publishToLeaders(WABA_B_Msg);
             haveSentWABA_B_Msg.add(dataKey_r_b);
         }
@@ -451,7 +451,7 @@ public class bilayerBFTNode {
     }
 
     private void onWABAResult(bilayerBFTMsg msg) {
-        SignatureUtils.verify();
+        SignatureUtils.aggVerify();
         int b = msg.getB();
         if(b == 0) {
             discardBlock(msg);
@@ -485,9 +485,12 @@ public class bilayerBFTNode {
         String msgKey = msg.getMsgKey();
         if(AFFIRM_HONESTMsgRecord.contains(msgKey)) return;
         SignatureUtils.verify();
-        AFFIRM_HONESTMsgCountMap.incrementAndGet(msg.getDataKey());
+        long cnt = AFFIRM_HONESTMsgCountMap.incrementAndGet(msg.getDataKey());
         AFFIRM_HONESTMsgRecord.add(msgKey);
         // 收集到f+1个就代表该节点是诚实的
+        if(cnt >= maxF+1) {
+            SignatureUtils.aggregate();
+        }
     }
 
     // 执行对应请求

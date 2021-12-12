@@ -53,19 +53,17 @@ public class bilayerBFTMain {
         for(int i = 0; i < size; i++) {
             communicationCost += nodes[i].totalSendMsgLen;
         }
-
-        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        String time = formatter.format(startTime);
-
-        String result = "bilayerBFT\n";
-        result += "开始时间:" + time + '\n';
-        result += "总带宽:" + (TOTAL_BANDWIDTH/8/1024) +"KB/s\n";
-        result += "节点数量:" + NODE_SIZE + '\n';
-        result += "通信开销: " + (communicationCost/8/1024) + "KB\n";
-        result += "耗时: " + (endTime-startTime) + "ms";
-        WriteResultToFile("result.txt", result);
         // =====================================用于计时=====================================
 
+        writeResultToFile(
+            "bilayerBFT",
+            startTime,
+            endTime,
+            TOTAL_BANDWIDTH,
+            NODE_SIZE,
+            communicationCost,
+            "result.txt"
+        );
     }
 
     // 初始化网络延迟, 先用组间延迟随机填满, 再把组内延迟覆盖更新
@@ -157,7 +155,7 @@ public class bilayerBFTMain {
     }
 
     // 把结果输出到文件中
-    private static void WriteResultToFile(String filePath, String result) {
+    public static void writeToFile(String filePath, String result) {
         try {
             FileOutputStream fos = new FileOutputStream(filePath);
             fos.write(result.getBytes());
@@ -165,5 +163,37 @@ public class bilayerBFTMain {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    public static void appendToFile(String filePath, String result) {
+        try {
+            FileOutputStream fos = new FileOutputStream(filePath, true);
+            fos.write(result.getBytes());
+            fos.close();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void writeResultToFile(
+        String category,
+        long startTime,
+        long endTime,
+        long totalBandWidth,
+        int nodeSize,
+        double communicationCost,
+        String filePath
+    ) {
+        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+        String timeStart = formatter.format(startTime);
+        String timeEnd = formatter.format(endTime);
+        String result = category + "\n";
+        result += "开始时间:" + timeStart + '\n';
+        result += "结束时间:" + timeEnd + '\n';
+        result += "总带宽:" + (totalBandWidth/8/1024) +"KB/s\n";
+        result += "节点数量:" + nodeSize + '\n';
+        result += "通信开销: " + (communicationCost/8/1024) + "KB\n";
+        result += "耗时: " + (endTime-startTime) + "ms";
+        writeToFile(filePath, result);
     }
 }

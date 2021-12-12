@@ -28,7 +28,7 @@ public class PBFTNode {
     private int index;                                              // 该节点的标识
     private int view;                                               // 该节点当前所处的视图
     private PBFTMsg curREQMsg;                                      // 当前正在处理的请求
-    private volatile boolean viewOK;                                // 所处视图的状态
+    private volatile boolean viewOK = true;                         // 所处视图的状态
     private volatile boolean isRunning = false;                     // 是否正在运行, 可用于设置Crash节点
     private long timeout = INIT_TIMEOUT;                            // 超时计时器
     public double totalSendMsgLen = 0;                              // 发送的所有消息的长度之和
@@ -105,7 +105,8 @@ public class PBFTNode {
             public void run() {
                 if(co == 0) {
                     // 启动后先同步视图
-                    pubView();
+                    // 做实验先把viewOK设置为true, 注释掉这行, 做完实验变回去
+//                    pubView();
                 }
                 co++;
 

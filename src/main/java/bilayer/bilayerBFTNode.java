@@ -180,6 +180,10 @@ public class bilayerBFTNode {
     }
 
     private void onRequest(bilayerBFTMsg msg) {
+        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
+        String text = "[节点" + index + "]收到request所花时间为: " + t + "ms \n";
+        bilayerBFTMain.writeToFile("result.txt", text);
+
         if(!msg.isValid()) {
             logger.info("[节点" + index + "]收到异常消息" + msg);
             return;
@@ -197,6 +201,10 @@ public class bilayerBFTNode {
     }
 
     private void onPrepare(bilayerBFTMsg msg) {
+        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
+        String text = "[节点" + index + "]收到prepare所花时间为: " + t + "ms \n";
+        bilayerBFTMain.writeToFile("result.txt", text);
+
         if(!checkMsg(msg)) {
             logger.info("[节点" + index + "]收到异常消息" + msg);
             return;
@@ -220,6 +228,10 @@ public class bilayerBFTNode {
     }
 
     private void onCommit(bilayerBFTMsg msg) {
+        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
+        String text = "[节点" + index + "]收到commit所花时间为: " + t + "ms \n";
+        bilayerBFTMain.writeToFile("result.txt", text);
+
         if(!checkMsg(msg)) {
             logger.info("[节点" + index + "]收到异常消息" + msg);
             return;
@@ -246,6 +258,10 @@ public class bilayerBFTNode {
     }
 
     private void onReply(bilayerBFTMsg msg) {
+        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
+        String text = "[节点" + index + "]收到reply所花时间为: " + t + "ms \n";
+        bilayerBFTMain.writeToFile("result.txt", text);
+
         SignatureUtils.verify();
         String msgKey = msg.getMsgKey();
         String dataKey = msg.getDataKey();
@@ -256,6 +272,10 @@ public class bilayerBFTNode {
     }
 
     private void onWeight(bilayerBFTMsg msg) {
+        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
+        String text = "[节点" + index + "]收到weight所花时间为: " + t + "ms \n";
+        bilayerBFTMain.writeToFile("result.txt", text);
+
         SignatureUtils.verify();
         String dataKey = msg.getDataKey();
         long weight_1 = REPLYMsgCountMap.get(dataKey);
@@ -322,6 +342,10 @@ public class bilayerBFTNode {
     }
 
     private void onWABA(bilayerBFTMsg msg) {
+        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
+        String text = "[节点" + index + "]收到WABA所花时间为: " + t + "ms \n";
+        bilayerBFTMain.writeToFile("result.txt", text);
+
         String msgKey_r_b = msg.getMsgKey() + msg.getR() + msg.getB();
         String dataKey = msg.getDataKey();
         String dataKey_r = dataKey + "_" + msg.getR();
@@ -373,6 +397,10 @@ public class bilayerBFTNode {
     }
 
     private void onAUX(bilayerBFTMsg msg) {
+        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
+        String text = "[节点" + index + "]收到AUX所花时间为: " + t + "ms \n";
+        bilayerBFTMain.writeToFile("result.txt", text);
+
         String msgKey_r_u = msg.getMsgKey() + msg.getR() + msg.getB();
         String dataKey = msg.getDataKey();
         String dataKey_r = dataKey + "_" + msg.getR();
@@ -451,6 +479,10 @@ public class bilayerBFTNode {
     }
 
     private void onWABAResult(bilayerBFTMsg msg) {
+        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
+        String text = "[节点" + index + "]收到WABAResult所花时间为: " + t + "ms \n";
+        bilayerBFTMain.writeToFile("result.txt", text);
+
         SignatureUtils.aggVerify();
         int b = msg.getB();
         if(b == 0) {
@@ -538,6 +570,10 @@ public class bilayerBFTNode {
             return null;
         }, SEND_WEIGHT_TIME);
 
+        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
+        String text = "SEND_WEIGHT_TIME:" + (SEND_WEIGHT_TIME+t) + "\n";
+        bilayerBFTMain.writeToFile("result.txt", text);
+
         TimerManager.schedule(() -> {
             // 如果超过指定之间还没完成请求
             if(!doneTimer.containsKey(dataKey)) {
@@ -555,14 +591,17 @@ public class bilayerBFTNode {
     // 通过RBC把请求发给所有节点, 这一步其实相当于PBFT中的pre-prepare阶段
     private void doRBC() {
         // TODO 补充RBC, 效果为所有节点的qbm中加入请求
-        publishToAll(curREQMsg);
+        for(int i = 0; i < n; i++) {
+            bilayerBFTMain.nodes[i].pushMsg(curREQMsg);
+        }
+//        publishToAll(curREQMsg);
     }
 
     private void checkTimer() {
     }
 
     // 向所有节点广播 (组内组外)
-    public synchronized void publishToAll(bilayerBFTMsg msg) {
+    public void publishToAll(bilayerBFTMsg msg) {
         logger.info("[节点" + index + "]向所有节点广播消息:" + msg);
         for(int i = 0; i < n; i++) {
             send(bilayerBFTMain.node2Index[i], new bilayerBFTMsg(msg));
@@ -570,7 +609,7 @@ public class bilayerBFTNode {
     }
 
     // 向所有leaders广播消息
-    public synchronized void publishToLeaders(bilayerBFTMsg msg) {
+    public void publishToLeaders(bilayerBFTMsg msg) {
         logger.info("[节点" + index + "]向所有leaders广播消息:" + msg);
         for(int i = 0; i < n; i++) {
             if(bilayerBFTMain.nodes[i].isLeader) {
@@ -580,7 +619,7 @@ public class bilayerBFTNode {
     }
 
     // 组内广播
-    public synchronized void publishInsideGroup(bilayerBFTMsg msg) {
+    public void publishInsideGroup(bilayerBFTMsg msg) {
         logger.info("[节点" + index + "]组内广播消息:" + msg);
         int leaderIndex = getLeaderIndex(index);
         for(int i = 0; i < groupSize; i++) {
@@ -588,7 +627,7 @@ public class bilayerBFTNode {
         }
     }
 
-    public synchronized void send(int toIndex, bilayerBFTMsg msg) {
+    public void send(int toIndex, bilayerBFTMsg msg) {
         // 模拟发送时长
         try {
             Thread.sleep(sendMsgTime(msg, BANDWIDTH));

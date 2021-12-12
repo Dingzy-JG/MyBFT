@@ -6,8 +6,8 @@ public class ConstantValue {
 
     // =====================================共用的值=====================================
 
-    public static final int NODE_SIZE = 50;
-    public static final int TRANSACTION_NUMBER = 10;
+    public static final int NODE_SIZE = 31;
+    public static final int TRANSACTION_NUMBER = 1;
 //    public static final int TRANSACTION_SIZE = 1 * 1024 * 1024 * 8; // 1M
     public static final int TOTAL_BANDWIDTH = 50 * 1024 * 8;
     public static final int BANDWIDTH = TOTAL_BANDWIDTH / NODE_SIZE;
@@ -41,10 +41,11 @@ public class ConstantValue {
     public static final long GROUP_OUTSIDE_FAST_NET_DELAY = 10;
     public static final long GROUP_OUTSIDE_SLOW_NET_DELAY = 30;
 
+    // TODO 小于32个节点时不准, 需要计算 (实在不行就判断一个, 小于32个就统一用某个值)
     // 计算理论最长用时
     public static final long SEND_WEIGHT_TIME =
-        // 1. 广播给所有节点request的时长 + 发送延迟
-        (MSG_TYPE_ID_SIZE + HASH_SIZE + TIMESTAMP_SIZE + ID_SIZE + PK_SIZE + SIGNATURE_SIZE) * 1000 * NODE_SIZE / BANDWIDTH + GROUP_OUTSIDE_SLOW_NET_DELAY +
+//        // 1. 广播给所有节点request的时长 + 发送延迟
+//        (MSG_TYPE_ID_SIZE + HASH_SIZE + TIMESTAMP_SIZE + ID_SIZE + PK_SIZE + SIGNATURE_SIZE) * 1000 * NODE_SIZE / BANDWIDTH + GROUP_OUTSIDE_SLOW_NET_DELAY +
         // 2. 组内广播prepare消息
         (MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + SIGNATURE_SIZE) * 1000 * bilayerBFTMain.groupSizeArr[0] / BANDWIDTH + GROUP_INSIDE_SLOW_NET_DELAY +
         // 3. 组内广播commit消息

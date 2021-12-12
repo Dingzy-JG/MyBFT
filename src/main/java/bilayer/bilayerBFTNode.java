@@ -180,9 +180,9 @@ public class bilayerBFTNode {
     }
 
     private void onRequest(bilayerBFTMsg msg) {
-        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
-        String text = "[节点" + index + "]收到request所花时间为: " + t + "ms \n";
-        bilayerBFTMain.writeToFile("result.txt", text);
+//        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
+//        String text = "[节点" + index + "]收到request所花时间为: " + t + "ms \n";
+//        bilayerBFTMain.writeToFile("result.txt", text);
 
         if(!msg.isValid()) {
             logger.info("[节点" + index + "]收到异常消息" + msg);
@@ -201,9 +201,9 @@ public class bilayerBFTNode {
     }
 
     private void onPrepare(bilayerBFTMsg msg) {
-        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
-        String text = "[节点" + index + "]收到prepare所花时间为: " + t + "ms \n";
-        bilayerBFTMain.writeToFile("result.txt", text);
+//        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
+//        String text = "[节点" + index + "]收到prepare所花时间为: " + t + "ms \n";
+//        bilayerBFTMain.writeToFile("result.txt", text);
 
         if(!checkMsg(msg)) {
             logger.info("[节点" + index + "]收到异常消息" + msg);
@@ -228,9 +228,9 @@ public class bilayerBFTNode {
     }
 
     private void onCommit(bilayerBFTMsg msg) {
-        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
-        String text = "[节点" + index + "]收到commit所花时间为: " + t + "ms \n";
-        bilayerBFTMain.writeToFile("result.txt", text);
+//        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
+//        String text = "[节点" + index + "]收到commit所花时间为: " + t + "ms \n";
+//        bilayerBFTMain.writeToFile("result.txt", text);
 
         if(!checkMsg(msg)) {
             logger.info("[节点" + index + "]收到异常消息" + msg);
@@ -258,9 +258,9 @@ public class bilayerBFTNode {
     }
 
     private void onReply(bilayerBFTMsg msg) {
-        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
-        String text = "[节点" + index + "]收到reply所花时间为: " + t + "ms \n";
-        bilayerBFTMain.writeToFile("result.txt", text);
+//        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
+//        String text = "[节点" + index + "]收到reply所花时间为: " + t + "ms \n";
+//        bilayerBFTMain.writeToFile("result.txt", text);
 
         SignatureUtils.verify();
         String msgKey = msg.getMsgKey();
@@ -272,9 +272,9 @@ public class bilayerBFTNode {
     }
 
     private void onWeight(bilayerBFTMsg msg) {
-        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
-        String text = "[节点" + index + "]收到weight所花时间为: " + t + "ms \n";
-        bilayerBFTMain.writeToFile("result.txt", text);
+//        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
+//        String text = "[节点" + index + "]收到weight所花时间为: " + t + "ms \n";
+//        bilayerBFTMain.writeToFile("result.txt", text);
 
         SignatureUtils.verify();
         String dataKey = msg.getDataKey();
@@ -342,9 +342,9 @@ public class bilayerBFTNode {
     }
 
     private void onWABA(bilayerBFTMsg msg) {
-        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
-        String text = "[节点" + index + "]收到WABA所花时间为: " + t + "ms \n";
-        bilayerBFTMain.writeToFile("result.txt", text);
+//        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
+//        String text = "[节点" + index + "]收到WABA所花时间为: " + t + "ms \n";
+//        bilayerBFTMain.writeToFile("result.txt", text);
 
         String msgKey_r_b = msg.getMsgKey() + msg.getR() + msg.getB();
         String dataKey = msg.getDataKey();
@@ -397,9 +397,9 @@ public class bilayerBFTNode {
     }
 
     private void onAUX(bilayerBFTMsg msg) {
-        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
-        String text = "[节点" + index + "]收到AUX所花时间为: " + t + "ms \n";
-        bilayerBFTMain.writeToFile("result.txt", text);
+//        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
+//        String text = "[节点" + index + "]收到AUX所花时间为: " + t + "ms \n";
+//        bilayerBFTMain.writeToFile("result.txt", text);
 
         String msgKey_r_u = msg.getMsgKey() + msg.getR() + msg.getB();
         String dataKey = msg.getDataKey();
@@ -479,9 +479,9 @@ public class bilayerBFTNode {
     }
 
     private void onWABAResult(bilayerBFTMsg msg) {
-        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
-        String text = "[节点" + index + "]收到WABAResult所花时间为: " + t + "ms \n";
-        bilayerBFTMain.writeToFile("result.txt", text);
+//        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
+//        String text = "[节点" + index + "]收到WABAResult所花时间为: " + t + "ms \n";
+//        bilayerBFTMain.writeToFile("result.txt", text);
 
         SignatureUtils.aggVerify();
         int b = msg.getB();
@@ -570,9 +570,9 @@ public class bilayerBFTNode {
             return null;
         }, SEND_WEIGHT_TIME);
 
-        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
-        String text = "SEND_WEIGHT_TIME:" + (SEND_WEIGHT_TIME+t) + "\n";
-        bilayerBFTMain.writeToFile("result.txt", text);
+//        long t = System.currentTimeMillis() - bilayerBFTMain.startTime;
+//        String text = "SEND_WEIGHT_TIME:" + (SEND_WEIGHT_TIME+t) + "\n";
+//        bilayerBFTMain.writeToFile("result.txt", text);
 
         TimerManager.schedule(() -> {
             // 如果超过指定之间还没完成请求

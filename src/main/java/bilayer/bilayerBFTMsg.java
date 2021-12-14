@@ -77,6 +77,10 @@ public class bilayerBFTMsg {
                 len = MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + SIGNATURE_SIZE + SIGNATURE_SIZE;
                 break;
             case WABA:
+                len = MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + WEIGHT_SIZE + RESULT_SIZE + SIGNATURE_SIZE +
+                        // 每个节点本地存ID和对应的PK， 对应的区块hash本地也有
+                        (ID_SIZE + RESULT_SIZE) * bilayerBFTMain.groupSizeArr[0];
+                break;
             case AUX:
                 len = MSG_TYPE_ID_SIZE + ID_SIZE + PK_SIZE + HASH_SIZE + WEIGHT_SIZE + RESULT_SIZE + SIGNATURE_SIZE;
                 break;

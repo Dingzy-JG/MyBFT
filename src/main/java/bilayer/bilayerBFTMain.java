@@ -157,7 +157,7 @@ public class bilayerBFTMain {
     // 把结果输出到文件中
     public static void writeToFile(String filePath, String result) {
         try {
-            FileOutputStream fos = new FileOutputStream(filePath, true);
+            FileOutputStream fos = new FileOutputStream(filePath);
             fos.write(result.getBytes());
             fos.close();
         } catch (Exception e) {

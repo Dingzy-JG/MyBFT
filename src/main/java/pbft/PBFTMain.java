@@ -25,10 +25,8 @@ public class PBFTMain {
     // =====================================用于计时=====================================
 
     public static void main(String[] args) throws InterruptedException {
-        initNet(FAST_NET_DELAY, SLOW_NET_DELAY, TO_ITSELF_DELAY);
-        for(int i = 0; i < size; i++) {
-            nodes[i] = new PBFTNode(i, size).start();
-        }
+        initNet();
+        initNode();
 
         // 模拟client发送请求
         for(int i = 0; i < transactionNum; i++) {
@@ -63,15 +61,21 @@ public class PBFTMain {
     }
 
     // 初始化网络延迟
-    private static void initNet(long fast, long slow, long toItself) {
+    private static void initNet() {
         for(int i = 0; i < size; i++) {
             for(int j = 0; j < size; j++) {
                 if(i != j) {
-                    netDelay[i][j] = RandomUtils.nextLong(fast, slow);
+                    netDelay[i][j] = RandomUtils.nextLong(FAST_NET_DELAY, SLOW_NET_DELAY);
                 } else {
-                    netDelay[i][j] = toItself;
+                    netDelay[i][j] = TO_ITSELF_DELAY;
                 }
             }
+        }
+    }
+
+    private static void initNode() {
+        for(int i = 0; i < size; i++) {
+            nodes[i] = new PBFTNode(i, size).start();
         }
     }
 

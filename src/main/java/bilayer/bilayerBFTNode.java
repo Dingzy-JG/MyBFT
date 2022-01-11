@@ -124,7 +124,6 @@ public class bilayerBFTNode {
             @Override
             public void run() {
                 doReq();
-//                checkTimer();
             }
         }, 100, 100);
         return this;
@@ -597,9 +596,6 @@ public class bilayerBFTNode {
 //        publishToAll(curREQMsg);
     }
 
-    private void checkTimer() {
-    }
-
     // 向所有节点广播 (组内组外)
     public void publishToAll(bilayerBFTMsg msg) {
         logger.info("[节点" + index + "]向所有节点广播消息:" + msg);
@@ -677,12 +673,12 @@ public class bilayerBFTNode {
         return index / OFFSET * OFFSET;
     }
 
-    private void NodeCrash() {
+    public void nodeCrash() {
         logger.info("[节点" + index + "]宕机--------------");
         isRunning = false;
     }
 
-    private void NodeRecover() {
+    public void nodeRecover() {
         logger.info("[节点" + index + "]恢复--------------");
         isRunning = true;
     }

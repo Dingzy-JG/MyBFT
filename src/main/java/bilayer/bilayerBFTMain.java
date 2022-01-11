@@ -30,11 +30,9 @@ public class bilayerBFTMain {
     // =====================================用于计时=====================================
 
     public static void main(String[] args) throws InterruptedException {
-        initNet(GROUP_INSIDE_FAST_NET_DELAY, GROUP_INSIDE_SLOW_NET_DELAY, GROUP_OUTSIDE_FAST_NET_DELAY, GROUP_OUTSIDE_SLOW_NET_DELAY, TO_ITSELF_DELAY);
-        for(int i = 0; i < size; i++) {
-            int index = node2Index[i];
-            nodes[i] = new bilayerBFTNode(index, size, groupSizeArr[getGroupIndex(index)], isLeader(index)).start();
-        }
+        initNet();
+        initNode();
+        initFaultNode();
 
         // 模拟client发送请求
         for(int i = 0; i < transactionNum; i++) {
@@ -68,11 +66,11 @@ public class bilayerBFTMain {
 
     // 初始化网络延迟, 先用组间延迟随机填满, 再把组内延迟覆盖更新
     // 节点需要已经做过处理, 每组分配OFFSET个连续的序号, 能被OFFSET整除的序号对应的节点为leader
-    private static void initNet(long innerGroupFast, long innerGroupSlow, long outerGroupFast, long outerGroupSlow, long toItself) {
+    private static void initNet() {
         // 先用组间随机范围填满
         for(int i = 0; i < 550; i++) {
             for(int j = 0; j < 550; j++) {
-                netDelay[i][j] = RandomUtils.nextLong(outerGroupFast, outerGroupSlow);
+                netDelay[i][j] = RandomUtils.nextLong(GROUP_OUTSIDE_FAST_NET_DELAY, GROUP_OUTSIDE_SLOW_NET_DELAY);
             }
         }
         // 再用组内的覆盖对应的
@@ -80,12 +78,33 @@ public class bilayerBFTMain {
             for(int i = OFFSET*c; i < OFFSET*(c+1); i++) {
                 for(int j = OFFSET*c; j < OFFSET*(c+1); j++) {
                     if(i != j) {
-                        netDelay[i][j] = RandomUtils.nextLong(innerGroupFast, innerGroupSlow);
+                        netDelay[i][j] = RandomUtils.nextLong(GROUP_INSIDE_FAST_NET_DELAY, GROUP_INSIDE_SLOW_NET_DELAY);
                     } else {
-                        netDelay[i][j] = toItself;
+                        netDelay[i][j] = TO_ITSELF_DELAY;
                     }
                 }
             }
+        }
+    }
+
+    private static void initNode() {
+        for(int i = 0; i < size; i++) {
+            int index = node2Index[i];
+            nodes[i] = new bilayerBFTNode(index, size, groupSizeArr[getGroupIndex(index)], isLeader(index)).start();
+        }
+    }
+
+    private static void initFaultNode() {
+        int groupOffset = 0; // 表示到第几组了
+        int inGroupOffset = 1; // 因为第一个节点代表leader, 所以从第二个节点开始出错
+        for(int i = 0; i < FAULT_NODE_SIZE; i++) {
+            int faultNodeIndex = 0;
+            for(int j = 0; j < (groupOffset % groupNum); j++) {
+                faultNodeIndex += groupSizeArr[j];
+            }
+            faultNodeIndex += inGroupOffset + groupOffset / groupNum;
+            nodes[faultNodeIndex].nodeCrash();
+            groupOffset++;
         }
     }
 

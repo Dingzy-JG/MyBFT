@@ -6,7 +6,9 @@ public class ConstantValue {
 
     // =====================================共用的值=====================================
 
-    public static final int NODE_SIZE = 4;
+    public static final int NODE_SIZE = 200;
+    public static final double FAULT_RATIO = 1.0/4;
+    public static final int FAULT_NODE_SIZE = (int) (NODE_SIZE * FAULT_RATIO);
     public static final int TRANSACTION_NUMBER = 1;
 //    public static final int TRANSACTION_SIZE = 1 * 1024 * 1024 * 8; // 1M
     public static final int TOTAL_BANDWIDTH = 50 * 1024 * 8;
